@@ -1,0 +1,24 @@
+{
+"type": "FeatureCollection",
+"name": "cuencas_coincidentes",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "punto_id": "amazonas-br", "ciudad": "Santarém (Amazonas)", "pais": "Brasil", "iso3": "BRA", "tipo": "cuenca", "HYBAS_ID": 6060263530, "nivel": 6, "SUB_AREA": 176.4 }, "geometry": { "type": "Point", "coordinates": [ -54.7, -2.44 ] } },
+{ "type": "Feature", "properties": { "punto_id": "belem-br", "ciudad": "Belém", "pais": "Brasil", "iso3": "BRA", "tipo": "cuenca", "HYBAS_ID": 6060008150, "nivel": 6, "SUB_AREA": 2175.8 }, "geometry": { "type": "Point", "coordinates": [ -48.49, -1.45 ] } },
+{ "type": "Feature", "properties": { "punto_id": "cobija-bo", "ciudad": "Cobija", "pais": "Bolivia", "iso3": "BOL", "tipo": "cuenca", "HYBAS_ID": 6060445040, "nivel": 6, "SUB_AREA": 36674.3 }, "geometry": { "type": "Point", "coordinates": [ -68.74, -11.03 ] } },
+{ "type": "Feature", "properties": { "punto_id": "guayana-ve", "ciudad": "Ciudad Guayana", "pais": "Venezuela", "iso3": "VEN", "tipo": "cuenca", "HYBAS_ID": 6060004470, "nivel": 6, "SUB_AREA": 15679.2 }, "geometry": { "type": "Point", "coordinates": [ -62.64, 8.37 ] } },
+{ "type": "Feature", "properties": { "punto_id": "iquitos-pe", "ciudad": "Iquitos", "pais": "Perú", "iso3": "PER", "tipo": "cuenca", "HYBAS_ID": 6060289030, "nivel": 6, "SUB_AREA": 27831.7 }, "geometry": { "type": "Point", "coordinates": [ -73.25, -3.75 ] } },
+{ "type": "Feature", "properties": { "punto_id": "leticia-co", "ciudad": "Leticia", "pais": "Colombia", "iso3": "COL", "tipo": "cuenca", "HYBAS_ID": 6060314490, "nivel": 6, "SUB_AREA": 32939.7 }, "geometry": { "type": "Point", "coordinates": [ -69.94, -4.21 ] } },
+{ "type": "Feature", "properties": { "punto_id": "manaus-br", "ciudad": "Manaos", "pais": "Brasil", "iso3": "BRA", "tipo": "cuenca", "HYBAS_ID": 6060280400, "nivel": 6, "SUB_AREA": 3485.2 }, "geometry": { "type": "Point", "coordinates": [ -60.02, -3.11 ] } },
+{ "type": "Feature", "properties": { "punto_id": "parana-ar", "ciudad": "Paraná (río Paraná)", "pais": "Argentina", "iso3": "ARG", "tipo": "cuenca", "HYBAS_ID": 6060870380, "nivel": 6, "SUB_AREA": 25197.8 }, "geometry": { "type": "Point", "coordinates": [ -60.53, -31.73 ] } },
+{ "type": "Feature", "properties": { "punto_id": "quito-rural-ec", "ciudad": "Tena (Amazonía)", "pais": "Ecuador", "iso3": "ECU", "tipo": "cuenca", "HYBAS_ID": 6060288920, "nivel": 6, "SUB_AREA": 102645.8 }, "geometry": { "type": "Point", "coordinates": [ -77.81, -0.99 ] } },
+{ "type": "Feature", "properties": { "punto_id": "moscu-cuenca-ru", "ciudad": "Volgogrado (Volga)", "pais": "Rusia", "iso3": "RUS", "tipo": null, "HYBAS_ID": 2060478150, "nivel": 6, "SUB_AREA": 10913.4 }, "geometry": { "type": "Point", "coordinates": [ 44.51, 48.71 ] } },
+{ "type": "Feature", "properties": { "punto_id": "danubio-hu", "ciudad": "Budapest (Danubio)", "pais": "Hungría", "iso3": "HUN", "tipo": null, "HYBAS_ID": 2060522970, "nivel": 6, "SUB_AREA": 5899.4 }, "geometry": { "type": "Point", "coordinates": [ 19.04, 47.5 ] } },
+{ "type": "Feature", "properties": { "punto_id": "el-cairo-nilo-eg", "ciudad": "Asuán (Nilo)", "pais": "Egipto", "iso3": "EGY", "tipo": null, "HYBAS_ID": 1060312580, "nivel": 6, "SUB_AREA": 19675.2 }, "geometry": { "type": "Point", "coordinates": [ 32.9, 24.09 ] } },
+{ "type": "Feature", "properties": { "punto_id": "nilo-sd", "ciudad": "Jartum (Nilo)", "pais": "Sudán", "iso3": "SDN", "tipo": null, "HYBAS_ID": 1060601190, "nivel": 6, "SUB_AREA": 17753.2 }, "geometry": { "type": "Point", "coordinates": [ 32.56, 15.5 ] } },
+{ "type": "Feature", "properties": { "punto_id": "mekong-vn", "ciudad": "Can Tho (Mekong)", "pais": "Vietnam", "iso3": "VNM", "tipo": null, "HYBAS_ID": 4060017020, "nivel": 6, "SUB_AREA": 20369.0 }, "geometry": { "type": "Point", "coordinates": [ 105.77, 10.04 ] } },
+{ "type": "Feature", "properties": { "punto_id": "ganges-in", "ciudad": "Varanasi (Ganges)", "pais": "India", "iso3": "IND", "tipo": null, "HYBAS_ID": 4060909110, "nivel": 6, "SUB_AREA": 7440.3 }, "geometry": { "type": "Point", "coordinates": [ 82.99, 25.32 ] } },
+{ "type": "Feature", "properties": { "punto_id": "mississippi-us", "ciudad": "Wuhan (Yangtsé)", "pais": "China", "iso3": "CHN", "tipo": null, "HYBAS_ID": 4060748320, "nivel": 6, "SUB_AREA": 7315.9 }, "geometry": { "type": "Point", "coordinates": [ 114.3, 30.59 ] } },
+{ "type": "Feature", "properties": { "punto_id": "yangtze-cn", "ciudad": "Wuhan (Yangtsé)", "pais": "China", "iso3": "CHN", "tipo": null, "HYBAS_ID": 4060748320, "nivel": 6, "SUB_AREA": 7315.9 }, "geometry": { "type": "Point", "coordinates": [ 114.3, 30.59 ] } }
+]
+}

@@ -91,6 +91,18 @@ Dashboard local (requiere [Quarto](https://quarto.org)):
 quarto render dashboard --to html   # o: make dashboard
 ```
 
+### Iteraciones del dashboard (frontend)
+
+El trabajo de frontend se ejecuta en 5 iteraciones verificables, detalladas en [`plan.md`](plan.md) §6b:
+
+| Iteración | Objetivo | Estado |
+|-----------|----------|--------|
+| **Iter 1** — Visual quick wins | Paleta ambiental, tipografía, KPI cards, popups por dominio, opacidad de capas, leyenda | ✅ Completa |
+| **Iter 2** — Polígonos y capas vectoriales 2D | Países, áreas urbanas, cuencas (Natural Earth + HydroBASINS), opacidad, leyenda dinámica | ✅ Completa |
+| **Iter 3** — Legibilidad e interacción | Tooltip hover vs popup click, leyenda dinámica, filtro temporal, responsive iframes | 🔄 En curso |
+| **Iter 4** — Indicadores avanzados | Coropletas por país (PM2.5, caudal), series temporales, heatmap, alertas OMS | 📋 Pendiente |
+| **Iter 5** — Rendimiento y accesibilidad | Auditoría WCAG, lazy loading, optimización de GeoJSON, embed AJAX | 📋 Pendiente |
+
 ## Estructura
 
 ```
@@ -100,12 +112,15 @@ src/extract/openmeteo_*.py      # Aire, clima, agua (CLI --fecha, idempotentes)
 src/extract/gfw_deforestacion.py + owid_co2.py  # Fuentes anuales
 src/transform/indicadores.py    # Bronce→plata→oro (DuckDB + fallback pandas)
 src/load/postgis.py             # DELETE+INSERT por fecha a PostGIS
+src/geo/map_components.py       # Componentes geoespaciales: países, áreas urbanas, cuencas
 dags/                           # Solo envuelven src/ (diaria, mensual, dashboard)
 sql/01_schema_postgis.sql       # Tablas + GiST (auto-aplicado en compose)
 sql/02_validaciones.sql         # 7 chequeos de calidad re-ejecutables
 dashboard/                      # Tablero + 3 pilares + Datos + Acerca de (Quarto)
+dashboard/geo/polygons/         # GeoJSON de polígonos (países, ciudades, cuencas)
+dashboard/geo/sources/          # Registro de fuentes geográficas abiertas
 lake/                           # Fuente de verdad: raw/curated/serving (gitignored)
 tests/test_pipeline.py          # Smoke: idempotencia + 150 puntos + compilación
 scripts/smoke_qmd.py            # Verifica chunks del dashboard sin Quarto
-docs/decisiones.md              # Bitácora D-01…D-10 (cada anomalía documentada)
+docs/decisiones.md              # Bitácora D-01…D-14 (cada anomalía documentada)
 ```

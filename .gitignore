@@ -25,3 +25,7 @@ _freeze/
 Thumbs.db
 .vscode/
 .idea/
+
+# Fuentes geográficas externas (zip grandes, no subir al repo)
+dashboard/geo/polygons/*.zip
+dashboard/geo/extracted/

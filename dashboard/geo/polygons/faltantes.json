@@ -1,0 +1,594 @@
+{
+  "sin_ciudad_ne": [
+    {
+      "id": "belmopan-bz",
+      "ciudad": "Belmopán",
+      "pais": "Belice",
+      "iso3": "BLZ",
+      "lat": 17.25,
+      "lon": -88.77,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "bogota-co",
+      "ciudad": "Bogotá",
+      "pais": "Colombia",
+      "iso3": "COL",
+      "lat": 4.71,
+      "lon": -74.07,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "brasilia-br",
+      "ciudad": "Brasilia",
+      "pais": "Brasil",
+      "iso3": "BRA",
+      "lat": -15.79,
+      "lon": -47.88,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "manaus-br",
+      "ciudad": "Manaos",
+      "pais": "Brasil",
+      "iso3": "BRA",
+      "lat": -3.11,
+      "lon": -60.02,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "cayena-gf",
+      "ciudad": "Cayena",
+      "pais": "Guayana Francesa",
+      "iso3": "GUF",
+      "lat": 4.93,
+      "lon": -52.32,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "lisboa-pt",
+      "ciudad": "Lisboa",
+      "pais": "Portugal",
+      "iso3": "PRT",
+      "lat": 38.72,
+      "lon": -9.14,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "paris-fr",
+      "ciudad": "París",
+      "pais": "Francia",
+      "iso3": "FRA",
+      "lat": 48.85,
+      "lon": 2.35,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "londres-gb",
+      "ciudad": "Londres",
+      "pais": "Reino Unido",
+      "iso3": "GBR",
+      "lat": 51.5,
+      "lon": -0.13,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "berlin-de",
+      "ciudad": "Berlín",
+      "pais": "Alemania",
+      "iso3": "DEU",
+      "lat": 52.52,
+      "lon": 13.4,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "amsterdam-nl",
+      "ciudad": "Ámsterdam",
+      "pais": "Países Bajos",
+      "iso3": "NLD",
+      "lat": 52.37,
+      "lon": 4.9,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "bruselas-be",
+      "ciudad": "Bruselas",
+      "pais": "Bélgica",
+      "iso3": "BEL",
+      "lat": 50.85,
+      "lon": 4.35,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "varsovia-pl",
+      "ciudad": "Varsovia",
+      "pais": "Polonia",
+      "iso3": "POL",
+      "lat": 52.23,
+      "lon": 21.01,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "atenas-gr",
+      "ciudad": "Atenas",
+      "pais": "Grecia",
+      "iso3": "GRC",
+      "lat": 37.98,
+      "lon": 23.73,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "estambul-tr",
+      "ciudad": "Estambul",
+      "pais": "Turquía",
+      "iso3": "TUR",
+      "lat": 41.01,
+      "lon": 28.98,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "moscu-ru",
+      "ciudad": "Moscú",
+      "pais": "Rusia",
+      "iso3": "RUS",
+      "lat": 55.76,
+      "lon": 37.62,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "kiev-ua",
+      "ciudad": "Kiev",
+      "pais": "Ucrania",
+      "iso3": "UKR",
+      "lat": 50.45,
+      "lon": 30.52,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "kinshasa-cd",
+      "ciudad": "Kinsasa",
+      "pais": "R.D. Congo",
+      "iso3": "COD",
+      "lat": -4.32,
+      "lon": 15.31,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "addis-et",
+      "ciudad": "Adís Abeba",
+      "pais": "Etiopía",
+      "iso3": "ETH",
+      "lat": 9.01,
+      "lon": 38.75,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "johannesburgo-za",
+      "ciudad": "Johannesburgo",
+      "pais": "Sudáfrica",
+      "iso3": "ZAF",
+      "lat": -26.2,
+      "lon": 28.05,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "calcuta-in",
+      "ciudad": "Calcuta",
+      "pais": "India",
+      "iso3": "IND",
+      "lat": 22.57,
+      "lon": 88.36,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "dhaka-bd",
+      "ciudad": "Daca",
+      "pais": "Bangladés",
+      "iso3": "BGD",
+      "lat": 23.81,
+      "lon": 90.41,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "hanoi-vn",
+      "ciudad": "Hanói",
+      "pais": "Vietnam",
+      "iso3": "VNM",
+      "lat": 21.03,
+      "lon": 105.85,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "pekin-cn",
+      "ciudad": "Pekín",
+      "pais": "China",
+      "iso3": "CHN",
+      "lat": 39.9,
+      "lon": 116.4,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "shanghai-cn",
+      "ciudad": "Shanghái",
+      "pais": "China",
+      "iso3": "CHN",
+      "lat": 31.23,
+      "lon": 121.47,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "seul-kr",
+      "ciudad": "Seúl",
+      "pais": "Corea del Sur",
+      "iso3": "KOR",
+      "lat": 37.57,
+      "lon": 126.98,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "tokio-jp",
+      "ciudad": "Tokio",
+      "pais": "Japón",
+      "iso3": "JPN",
+      "lat": 35.69,
+      "lon": 139.69,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "sidney-au",
+      "ciudad": "Sídney",
+      "pais": "Australia",
+      "iso3": "AUS",
+      "lat": -33.87,
+      "lon": 151.21,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "teheran-ir",
+      "ciudad": "Teherán",
+      "pais": "Irán",
+      "iso3": "IRN",
+      "lat": 35.69,
+      "lon": 51.39,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "bagdad-iq",
+      "ciudad": "Bagdad",
+      "pais": "Irak",
+      "iso3": "IRQ",
+      "lat": 33.31,
+      "lon": 44.36,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "riad-sa",
+      "ciudad": "Riad",
+      "pais": "Arabia Saudita",
+      "iso3": "SAU",
+      "lat": 24.71,
+      "lon": 46.68,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "moscu-cuenca-ru",
+      "ciudad": "Volgogrado (Volga)",
+      "pais": "Rusia",
+      "iso3": "RUS",
+      "lat": 48.71,
+      "lon": 44.51,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "el-cairo-nilo-eg",
+      "ciudad": "Asuán (Nilo)",
+      "pais": "Egipto",
+      "iso3": "EGY",
+      "lat": 24.09,
+      "lon": 32.9,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "nilo-sd",
+      "ciudad": "Jartum (Nilo)",
+      "pais": "Sudán",
+      "iso3": "SDN",
+      "lat": 15.5,
+      "lon": 32.56,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "sevilla-es",
+      "ciudad": "Sevilla",
+      "pais": "España",
+      "iso3": "ESP",
+      "lat": 37.39,
+      "lon": -5.99,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "milan-it",
+      "ciudad": "Milán",
+      "pais": "Italia",
+      "iso3": "ITA",
+      "lat": 45.46,
+      "lon": 9.19,
+      "tipo": "ciudad"
+    }
+  ],
+  "sin_cuenca_hybas": [
+    {
+      "id": "moscu-cuenca-ru",
+      "ciudad": "Volgogrado (Volga)",
+      "pais": "Rusia",
+      "iso3": "RUS",
+      "lat": 48.71,
+      "lon": 44.51
+    },
+    {
+      "id": "el-cairo-nilo-eg",
+      "ciudad": "Asuán (Nilo)",
+      "pais": "Egipto",
+      "iso3": "EGY",
+      "lat": 24.09,
+      "lon": 32.9
+    },
+    {
+      "id": "danubio-hu",
+      "ciudad": "Budapest (Danubio)",
+      "pais": "Hungría",
+      "iso3": "HUN",
+      "lat": 47.5,
+      "lon": 19.04
+    },
+    {
+      "id": "mekong-vn",
+      "ciudad": "Can Tho (Mekong)",
+      "pais": "Vietnam",
+      "iso3": "VNM",
+      "lat": 10.04,
+      "lon": 105.77
+    },
+    {
+      "id": "ganges-in",
+      "ciudad": "Varanasi (Ganges)",
+      "pais": "India",
+      "iso3": "IND",
+      "lat": 25.32,
+      "lon": 82.99
+    },
+    {
+      "id": "mississippi-us",
+      "ciudad": "Nueva Orleans (Misisipi)",
+      "pais": "EE. UU.",
+      "iso3": "USA",
+      "lat": 29.95,
+      "lon": -90.07
+    },
+    {
+      "id": "nilo-sd",
+      "ciudad": "Jartum (Nilo)",
+      "pais": "Sudán",
+      "iso3": "SDN",
+      "lat": 15.5,
+      "lon": 32.56
+    },
+    {
+      "id": "yangtze-cn",
+      "ciudad": "Wuhan (Yangtsé)",
+      "pais": "China",
+      "iso3": "CHN",
+      "lat": 30.59,
+      "lon": 114.3
+    }
+  ],
+  "sin_area_urbana": [
+    {
+      "id": "quetzaltenango-gt",
+      "ciudad": "Quetzaltenango",
+      "pais": "Guatemala",
+      "iso3": "GTM",
+      "lat": 14.83,
+      "lon": -91.52,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "belmopan-bz",
+      "ciudad": "Belmopán",
+      "pais": "Belice",
+      "iso3": "BLZ",
+      "lat": 17.25,
+      "lon": -88.77,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "bluefields-ni",
+      "ciudad": "Bluefields",
+      "pais": "Nicaragua",
+      "iso3": "NIC",
+      "lat": 12.01,
+      "lon": -83.76,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "limon-cr",
+      "ciudad": "Limón",
+      "pais": "Costa Rica",
+      "iso3": "CRI",
+      "lat": 9.99,
+      "lon": -83.03,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "colon-pa",
+      "ciudad": "Colón",
+      "pais": "Panamá",
+      "iso3": "PAN",
+      "lat": 9.35,
+      "lon": -79.9,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "santiago-cu",
+      "ciudad": "Santiago de Cuba",
+      "pais": "Cuba",
+      "iso3": "CUB",
+      "lat": 20.02,
+      "lon": -75.83,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "san-juan-pr",
+      "ciudad": "San Juan",
+      "pais": "Puerto Rico",
+      "iso3": "PRI",
+      "lat": 18.46,
+      "lon": -66.11,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "puerto-espana-tt",
+      "ciudad": "Puerto España",
+      "pais": "Trinidad y Tobago",
+      "iso3": "TTO",
+      "lat": 10.65,
+      "lon": -61.52,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "leticia-co",
+      "ciudad": "Leticia",
+      "pais": "Colombia",
+      "iso3": "COL",
+      "lat": -4.21,
+      "lon": -69.94,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "guayaquil-ec",
+      "ciudad": "Guayaquil",
+      "pais": "Ecuador",
+      "iso3": "ECU",
+      "lat": -2.19,
+      "lon": -79.89,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "galapagos-ec",
+      "ciudad": "Puerto Ayora (Galápagos)",
+      "pais": "Ecuador",
+      "iso3": "ECU",
+      "lat": -0.74,
+      "lon": -90.31,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "uyuni-bo",
+      "ciudad": "Uyuni",
+      "pais": "Bolivia",
+      "iso3": "BOL",
+      "lat": -20.46,
+      "lon": -66.83,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "punta-arenas-cl",
+      "ciudad": "Punta Arenas",
+      "pais": "Chile",
+      "iso3": "CHL",
+      "lat": -53.16,
+      "lon": -70.91,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "pascua-cl",
+      "ciudad": "Hanga Roa (Rapa Nui)",
+      "pais": "Chile",
+      "iso3": "CHL",
+      "lat": -27.11,
+      "lon": -109.35,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "ushuaia-ar",
+      "ciudad": "Ushuaia",
+      "pais": "Argentina",
+      "iso3": "ARG",
+      "lat": -54.8,
+      "lon": -68.3,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "bariloche-ar",
+      "ciudad": "Bariloche",
+      "pais": "Argentina",
+      "iso3": "ARG",
+      "lat": -41.13,
+      "lon": -71.31,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "recife-br",
+      "ciudad": "Recife",
+      "pais": "Brasil",
+      "iso3": "BRA",
+      "lat": -8.05,
+      "lon": -34.9,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "pasto-co",
+      "ciudad": "Pasto",
+      "pais": "Colombia",
+      "iso3": "COL",
+      "lat": 1.21,
+      "lon": -77.28,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "puno-pe",
+      "ciudad": "Puno",
+      "pais": "Perú",
+      "iso3": "PER",
+      "lat": -15.84,
+      "lon": -70.02,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "villavicencio-co",
+      "ciudad": "Villavicencio",
+      "pais": "Colombia",
+      "iso3": "COL",
+      "lat": 4.15,
+      "lon": -73.63,
+      "tipo": "ciudad"
+    },
+    {
+      "id": "quito-rural-ec",
+      "ciudad": "Tena (Amazonía)",
+      "pais": "Ecuador",
+      "iso3": "ECU",
+      "lat": -0.99,
+      "lon": -77.81,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "cobija-bo",
+      "ciudad": "Cobija",
+      "pais": "Bolivia",
+      "iso3": "BOL",
+      "lat": -11.03,
+      "lon": -68.74,
+      "tipo": "cuenca"
+    },
+    {
+      "id": "florianopolis-br",
+      "ciudad": "Florianópolis",
+      "pais": "Brasil",
+      "iso3": "BRA",
+      "lat": -27.59,
+      "lon": -48.55,
+      "tipo": "ciudad"
+    }
+  ]
+}

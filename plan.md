@@ -195,6 +195,22 @@ plataforma-ambiental/
 
 ---
 
+## 6b. Iteraciones del dashboard (frontend) — detallado de la Etapa 1 y 2
+
+El trabajo de frontend (Quarto + Folium + Plotly) se ejecuta en 5 iteraciones dentro de las Etapas 1 (MVP) y 2 (Consolidación). Cada iteración es un bloque verificable; no se inicia la siguiente sin tener la anterior desplegada o al menos validada localmente.
+
+| Iteración | Objetivo | Estado | Etapa | Hito |
+|-----------|----------|--------|-------|------|
+| **Iter 1** — Visual quick wins | Paleta ambiental, tipografía, KPI cards, popups por dominio, opacidad de capas, leyenda | ✅ Completa | 1 (MVP) | H4 (parte visual) |
+| **Iter 2** — Polígonos y capas vectoriales 2D | Países, áreas urbanas, cuencas (Natural Earth + HydroBASINS), control de opacidad, leyenda dinámica | ✅ Completa | 1 (MVP) | H4 (parte visual) |
+| **Iter 3** — Legibilidad e interacción | Tooltip hover vs popup click, leyenda dinámica por capas activas, filtro temporal integrado, responsive iframes | 🔄 En curso | 1→2 | H4/H2 |
+| **Iter 4** — Indicadores avanzados | Coropletas por país (PM2.5, caudal), series temporales, heatmap de temperatura, alertas OMS | 📋 Pendiente | 2 (Consol.) | H2 |
+| **Iter 5** — Rendimiento y accesibilidad | Auditoría WCAG, lazy loading, optimización de GeoJSON, embed AJAX de polígonos | 📋 Pendiente | 2 (Consol.) | H2 |
+
+**Coherencia con el plan de etapas:** las iteraciones 1 y 2 caen dentro de la Etapa 1d (Dashboard + despliegue). La iteración 3 inicia en la Etapa 1 y se cierra en la Etapa 2 (alertas y calidad de datos). Las iteraciones 4 y 5 pertenecen a la Etapa 2 (Consolidación). Ninguna iteración de frontend toca la Etapa 3 (satélite/VM) ni la Etapa 4 (escala).
+
+---
+
 ## 7. Cronograma resumido
 
 | Etapa | Duración estimada | Entregable visible |
