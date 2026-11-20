@@ -16,7 +16,17 @@ from typing import Tuple
 import folium
 from folium.features import GeoJson
 
-GEO_DIR = Path(__file__).resolve().parent.parent / "dashboard" / "geo" / "polygons"
+# El directorio de polígonos puede estar en dashboard/geo/polygons (desde la
+# raíz del repo) o, al ejecutarse desde subcarpetas, en rutas relativas.
+# Se busca en varias ubicaciones posibles para ser robusto al contexto de
+# ejecución (Quarto render desde dashboard/, Actions desde raíz del repo, etc.).
+_CANDIDATES = [
+    Path(__file__).resolve().parent.parent.parent / "dashboard" / "geo" / "polygons",
+    Path(__file__).resolve().parent.parent / "dashboard" / "geo" / "polygons",
+    Path("dashboard/geo/polygons").resolve(),
+    Path("../dashboard/geo/polygons").resolve(),
+]
+GEO_DIR = next((c for c in _CANDIDATES if c.exists()), _CANDIDATES[0])
 
 # Estilos por tipo de polígono
 ESTILO_PAISES = {
