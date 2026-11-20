@@ -72,7 +72,7 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
 
     data_paises = _cargar_geojson("paises_necesarios.geojson")
     if data_paises:
-        g_paises = folium.FeatureGroup(name="Países (contexto)", show=False)
+        g_paises = folium.FeatureGroup(name="Países (contexto)", show=True)
         GeoJson(
             data_paises,
             name="Países",
@@ -85,7 +85,7 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
 
     data_urbanas = _cargar_geojson("areas_urbanas_coincidentes.geojson")
     if data_urbanas:
-        g_urbanas = folium.FeatureGroup(name="Áreas urbanas", show=False)
+        g_urbanas = folium.FeatureGroup(name="Áreas urbanas", show=True)
         GeoJson(
             data_urbanas,
             name="Área urbana",
@@ -98,7 +98,7 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
 
     data_cuencas = _cargar_geojson("cuencas_coincidentes.geojson")
     if data_cuencas:
-        g_cuencas = folium.FeatureGroup(name="Cuencas hidrográficas", show=False)
+        g_cuencas = folium.FeatureGroup(name="Cuencas hidrográficas", show=True)
         GeoJson(
             data_cuencas,
             name="Cuenca",
