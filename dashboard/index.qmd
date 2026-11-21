@@ -3,6 +3,23 @@ title: "Tablero regional"
 lang: es
 ---
 
+<nav class="top-nav">
+  <div class="nav-container">
+    <a href="index.qmd" class="nav-brand">
+      <span class="brand-mark">E</span>
+      <span>EcoPulso · Observatorio Ambiental</span>
+    </a>
+    <div class="nav-spacer"></div>
+    <a href="calidad_aire.qmd" class="nav-link">Aire</a>
+    <a href="meteorologia.qmd" class="nav-link">Clima</a>
+    <a href="hidrologia.qmd" class="nav-link">Agua</a>
+    <a href="datos.qmd" class="nav-link">Datos</a>
+    <a href="acerca.qmd" class="nav-link">Acerca de</a>
+  </div>
+</nav>
+
+<div class="main-container">
+
 ```{python}
 #| label: datos-base
 #| output: false
@@ -89,7 +106,39 @@ print('<div class="kpi-row">' + "".join(cards) + "</div>")
 
 ## 02 · Visor maestro
 
+<div class="filtros-globales">
+  <div class="filtro-grupo">
+    <span class="filtro-label">Fecha</span>
+    <select class="filtro-select" id="filtro-fecha">
+      <option value="{ult}">{ult} (hoy)</option>
+    </select>
+  </div>
+  <div class="filtro-grupo">
+    <span class="filtro-label">Región</span>
+    <select class="filtro-select" id="filtro-region">
+      <option value="todos">Todas las regiones</option>
+      <option value="LatAm">Latinoamérica</option>
+      <option value="Mundo">Resto del mundo</option>
+    </select>
+  </div>
+  <div class="filtro-grupo">
+    <span class="filtro-label">Dominio</span>
+    <select class="filtro-select" id="filtro-dominio">
+      <option value="todos">Todos los dominios</option>
+      <option value="aire">Aire · PM2.5</option>
+      <option value="clima">Clima · Temperatura</option>
+      <option value="agua">Agua · Caudal</option>
+    </select>
+  </div>
+  <div class="filtro-grupo" style="flex:1;">
+    <span class="filtro-label">Opacidad polígonos</span>
+    <input type="range" class="filtro-range" id="filtro-opacidad-poly" min="0" max="1" step="0.1" value="1">
+  </div>
+</div>
+
 Enciende las capas **Aire · Clima · Agua · Calor · IDW** (arriba a la derecha; todas arrancan apagadas) y cambia el fondo entre calles y satélite.
+
+<div class="map-header"><p class="map-title">Visor maestro multicapa — PM2.5 por categoría OMS, temperatura y caudal</p></div>
 
 ::: {.map-wrap}
 ```{python}
@@ -179,6 +228,12 @@ folium.TileLayer("OpenStreetMap", name="Calles OSM", show=False).add_to(m)
 folium.TileLayer(tiles=ESRI_CALLES, attr="Esri", name="Esri calles", show=False).add_to(m)
 folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(m)
 
+# ---- Capas de polígonos (FONDO - se dibujan primero, debajo de todo) ----
+g_paises, g_urbanas, g_cuencas = capas_poligonos()
+if g_paises: g_paises.add_to(m)
+if g_cuencas: g_cuencas.add_to(m)
+if g_urbanas: g_urbanas.add_to(m)
+
 overlay_path = Path(f"../lake/serving/superficies/fecha={ult}/pm25.png")
 if overlay_path.exists():
     g_idw = folium.FeatureGroup(name="Superficie IDW · PM2.5", show=False)
@@ -194,7 +249,7 @@ for _, p in base.dropna(subset=["pm25_media"]).iterrows():
     folium.CircleMarker(
         [p["lat"], p["lon"]], radius=4 + min(float(p["pm25_media"]), 150) / 18,
         color=OMS.get(p["categoria_pm25_aqi"], "#6c757d"), fill=True, fill_opacity=0.8,
-        tooltip=f"{p['ciudad']}: PM2.5 {p['pm25_media']:.1f} µg/m³",
+        tooltip=f"{p['ciudad']}: PM2.5 {p['pm25_media']:.1f} µg/m³ ({p['categoria_pm25_aqi']})",
         popup=popup("aire", p, [("PM2.5", f"{p['pm25_media']:.1f} µg/m³"),
                         ("Categoría", p["categoria_pm25_aqi"]), ("AQI US máx", f1(p["us_aqi_max"], 0))]),
     ).add_to(mc_a)
@@ -232,12 +287,6 @@ HeatMap(
     radius=18, blur=12, max_zoom=6, min_opacity=0.35,
 ).add_to(hg)
 hg.add_to(m)
-
-# ---- Capas de polígonos (países, áreas urbanas, cuencas) ----
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
-if g_paises: g_paises.add_to(m)
-if g_urbanas: g_urbanas.add_to(m)
-if g_cuencas: g_cuencas.add_to(m)
 
 # Sin barra de escala en el maestro: el color de clima se lee en los
 # tooltips y la leyenda AQI manda (menos ruido arriba del mapa).
@@ -499,3 +548,5 @@ Interpolación por distancia inversa desde las estaciones, con fundido por dista
 top = latam.dropna(subset=["pm25_media"]).sort_values("pm25_media", ascending=False).head(10)
 display(top[["ciudad", "pais", "pm25_media", "categoria_pm25_aqi", "us_aqi_max"]])
 ```
+
+</div>

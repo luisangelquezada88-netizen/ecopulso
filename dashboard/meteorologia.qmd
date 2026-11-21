@@ -149,6 +149,13 @@ m = folium.Map(location=[-12, -62], zoom_start=3, tiles=None, control_scale=True
                preferCanvas=True, scrollWheelZoom=False)
 folium.TileLayer("OpenStreetMap", name="Calles OSM").add_to(m)
 folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(m)
+
+# ---- Capas de polígonos (FONDO - se dibujan primero, debajo de todo) ----
+g_paises, g_urbanas, g_cuencas = capas_poligonos()
+if g_paises: g_paises.add_to(m)
+if g_cuencas: g_cuencas.add_to(m)
+if g_urbanas: g_urbanas.add_to(m)
+
 mc = MarkerCluster(name="Clima").add_to(m)
 for _, p in base.dropna(subset=["temp_media_c"]).iterrows():
     ll = 0 if pd.isna(p["precipitacion_mm"]) else float(p["precipitacion_mm"])
@@ -162,12 +169,6 @@ for _, p in base.dropna(subset=["temp_media_c"]).iterrows():
                         ("Viento máx", f"{f1(p['viento_max_kmh'])} km/h")]),
     ).add_to(mc)
 mc.add_to(m)
-
-# ---- Capas de polígonos (países, áreas urbanas, cuencas) ----
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
-if g_paises: g_paises.add_to(m)
-if g_urbanas: g_urbanas.add_to(m)
-if g_cuencas: g_cuencas.add_to(m)
 
 col_temp.add_to(m)
 EcoMobile().add_to(m)

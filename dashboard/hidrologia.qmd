@@ -161,6 +161,13 @@ m = folium.Map(location=[-12, -62], zoom_start=3, tiles=None, control_scale=True
                preferCanvas=True, scrollWheelZoom=False)
 folium.TileLayer("OpenStreetMap", name="Calles OSM").add_to(m)
 folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(m)
+
+# ---- Capas de polígonos (FONDO - se dibujan primero, debajo de todo) ----
+g_paises, g_urbanas, g_cuencas = capas_poligonos()
+if g_paises: g_paises.add_to(m)
+if g_cuencas: g_cuencas.add_to(m)
+if g_urbanas: g_urbanas.add_to(m)
+
 mc = MarkerCluster(name="Caudal").add_to(m)
 for _, p in base.dropna(subset=["caudal_m3s"]).iterrows():
     qq = float(p["caudal_m3s"])
@@ -173,12 +180,6 @@ for _, p in base.dropna(subset=["caudal_m3s"]).iterrows():
         popup=popup("agua", p, [("Caudal", f"{qq:,.0f} m³/s"), ("Tipo", "Cuenca" if es_c else "Ciudad (malla)")]),
     ).add_to(mc)
 mc.add_to(m)
-
-# ---- Capas de polígonos (países, áreas urbanas, cuencas) ----
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
-if g_paises: g_paises.add_to(m)
-if g_urbanas: g_urbanas.add_to(m)
-if g_cuencas: g_cuencas.add_to(m)
 
 EcoLegend("<details open><summary>Caudal GloFAS</summary><div class='eco-body'>"
           "<div><span class='dot' style='color:#01497c'>●</span> Cuenca</div>"

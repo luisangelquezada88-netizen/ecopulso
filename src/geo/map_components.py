@@ -4,7 +4,7 @@ Carga GeoJSON de polígonos (países, áreas urbanas, cuencas) y crea
 FeatureGroups de Folium listos para agregar a cualquier visor.
 
 Uso en un .qmd:
-    from src.geo.map_components import capas_poligonos, leyenda_poligonos
+    from src.geo.map_components import capas_poligonos, html_leyenda_poligonos
     g_paises, g_urbanas, g_cuencas = capas_poligonos()
     g_paises.add_to(m); g_urbanas.add_to(m); g_cuencas.add_to(m)
 """
@@ -28,23 +28,25 @@ _CANDIDATES = [
 ]
 GEO_DIR = next((c for c in _CANDIDATES if c.exists()), _CANDIDATES[0])
 
-# Estilos por tipo de polígono
+# ---------------------------------------------------------------------------
+# Estilos por tipo de polígono (relleno más visible para Iteración 3)
+# ---------------------------------------------------------------------------
 ESTILO_PAISES = {
     "color": "#0b3d2e",
     "weight": 1,
-    "fillOpacity": 0.05,
+    "fillOpacity": 0.08,
     "fillColor": "#0b3d2e",
 }
 ESTILO_URBANAS = {
     "color": "#52796f",
     "weight": 1.5,
-    "fillOpacity": 0.15,
+    "fillOpacity": 0.22,
     "fillColor": "#52796f",
 }
 ESTILO_CUENCAS = {
     "color": "#01497c",
     "weight": 2,
-    "fillOpacity": 0.12,
+    "fillOpacity": 0.18,
     "fillColor": "#01497c",
 }
 
@@ -63,13 +65,16 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
     """
     Crea tres FeatureGroups de Folium con los polígonos disponibles:
       - países (contexto + clipping futuro del IDW)
-      - áreas urbanas (polígonos de ciudad)
+      - áreas urbanas (polígonos de ciudad, 100% de cobertura con buffers)
       - cuencas (polígonos hidrográficos, nivel 6 HydroBASINS)
+
+    Orden de capas: países (fondo) -> cuencas -> áreas urbanas -> marcadores (sobre todo).
     Devuelve (g_paises, g_urbanas, g_cuencas) — cada uno puede ser None si
     el archivo GeoJSON no existe.
     """
     g_paises = g_urbanas = g_cuencas = None
 
+    # 1. Países (capa de fondo, más abajo en z-index)
     data_paises = _cargar_geojson("paises_necesarios.geojson")
     if data_paises:
         g_paises = folium.FeatureGroup(name="Países (contexto)", show=True)
@@ -83,6 +88,23 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             ),
         ).add_to(g_paises)
 
+    # 2. Cuencas hidrográficas (sobre países, bajo áreas urbanas)
+    data_cuencas = _cargar_geojson("cuencas_coincidentes.geojson")
+    if data_cuencas:
+        g_cuencas = folium.FeatureGroup(name="Cuencas hidrográficas", show=True)
+        GeoJson(
+            data_cuencas,
+            name="Cuenca",
+            style_function=lambda feat: ESTILO_CUENCAS,
+            highlight_function=lambda feat: {"weight": 4, "color": "#01497c"},
+            tooltip=folium.features.GeoJsonTooltip(
+                fields=["ciudad", "pais", "nivel"],
+                aliases=["Ciudad:", "País:", "Nivel cuenca:"],
+                sticky=True,
+            ),
+        ).add_to(g_cuencas)
+
+    # 3. Áreas urbanas (sobre cuencas, bajo marcadores de puntos)
     data_urbanas = _cargar_geojson("areas_urbanas_coincidentes.geojson")
     if data_urbanas:
         g_urbanas = folium.FeatureGroup(name="Áreas urbanas", show=True)
@@ -92,24 +114,11 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             style_function=lambda feat: ESTILO_URBANAS,
             highlight_function=lambda feat: {"weight": 3, "color": "#52796f"},
             tooltip=folium.features.GeoJsonTooltip(
-                fields=["ciudad", "pais"], aliases=["Ciudad:", "País:"], sticky=True
-            ),
-        ).add_to(g_urbanas)
-
-    data_cuencas = _cargar_geojson("cuencas_coincidentes.geojson")
-    if data_cuencas:
-        g_cuencas = folium.FeatureGroup(name="Cuencas hidrográficas", show=True)
-        GeoJson(
-            data_cuencas,
-            name="Cuenca",
-            style_function=lambda feat: ESTILO_CUENCAS,
-            highlight_function=lambda feat: {"weight": 3, "color": "#01497c"},
-            tooltip=folium.features.GeoJsonTooltip(
-                fields=["ciudad", "pais", "nivel"],
-                aliases=["Ciudad:", "País:", "Nivel cuenca:"],
+                fields=["ciudad", "pais", "tipo"],
+                aliases=["Ciudad:", "País:", "Tipo:"],
                 sticky=True,
             ),
-        ).add_to(g_cuencas)
+        ).add_to(g_urbanas)
 
     return g_paises, g_urbanas, g_cuencas
 

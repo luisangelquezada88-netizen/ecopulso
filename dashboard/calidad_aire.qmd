@@ -162,6 +162,13 @@ m = folium.Map(location=[-12, -62], zoom_start=3, tiles=None, control_scale=True
                preferCanvas=True, scrollWheelZoom=False)
 folium.TileLayer("OpenStreetMap", name="Calles OSM").add_to(m)
 folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(m)
+
+# ---- Capas de polígonos (FONDO - se dibujan primero, debajo de todo) ----
+g_paises, g_urbanas, g_cuencas = capas_poligonos()
+if g_paises: g_paises.add_to(m)
+if g_cuencas: g_cuencas.add_to(m)
+if g_urbanas: g_urbanas.add_to(m)
+
 mc = MarkerCluster(name="PM2.5").add_to(m)
 for _, p in base.dropna(subset=["pm25_media"]).iterrows():
     folium.CircleMarker(
@@ -174,12 +181,6 @@ for _, p in base.dropna(subset=["pm25_media"]).iterrows():
                         ("NO₂", f"{f1(p['no2_media'])} µg/m³")]),
     ).add_to(mc)
 mc.add_to(m)
-
-# ---- Capas de polígonos (países, áreas urbanas, cuencas) ----
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
-if g_paises: g_paises.add_to(m)
-if g_urbanas: g_urbanas.add_to(m)
-if g_cuencas: g_cuencas.add_to(m)
 
 items = "".join(f"<div><span class='dot' style='color:{c}'>●</span> {k}</div>" for k, c in OMS.items())
 items_poly = html_leyenda_poligonos()
