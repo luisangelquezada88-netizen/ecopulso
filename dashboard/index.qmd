@@ -95,7 +95,7 @@ pio.templates.default = "plotly_white+eco"
   ::: {.map-wrap-full}
   ```{python}
   #| label: visor-maestro
-  #| fig-cap: "Visor maestro multicapa a pantalla completa: PM2.5, temperatura, caudal, IDW y polígonos geoespaciales"
+  #| fig-cap: "Visor maestro multicapa a pantalla completa: PM2.5, temperatura, caudal, IDW y poligonos geoespaciales"
   import math
   import folium
   from folium.plugins import MarkerCluster, Fullscreen, HeatMap, MiniMap
@@ -205,34 +205,34 @@ pio.templates.default = "plotly_white+eco"
       folium.CircleMarker(
           [p["lat"], p["lon"]], radius=4 + min(float(p["pm25_media"]), 150) / 18,
           color=OMS.get(p["categoria_pm25_aqi"], "#6c757d"), fill=True, fill_opacity=0.8,
-          tooltip=f"{p['ciudad']}: PM2.5 {p['pm25_media']:.1f} µg/m³ ({p['categoria_pm25_aqi']})",
+          tooltip=f"{p['ciudad']}: PM2.5 {p['pm25_media']:.1f} ug/m3 ({p['categoria_pm25_aqi']})",
           popup=popup("aire", p, [("PM2.5", f"{p['pm25_media']:.1f} µg/m³"),
-                          ("Categoría", p["categoria_pm25_aqi"]), ("AQI US máx", f1(p["us_aqi_max"], 0))]),
+                          ("Categoria", p["categoria_pm25_aqi"]), ("AQI US max", f1(p["us_aqi_max"], 0))]),
       ).add_to(mc_a)
   g_aire.add_to(m)
 
   col_temp = cm.LinearColormap(["#2166ac", "#fee08b", "#b2182b"], vmin=0, vmax=35)
-  g_clima = folium.FeatureGroup(name="Clima · Temp/lluvia", show=False)
+  g_clima = folium.FeatureGroup(name="Clima - Temp/lluvia", show=False)
   mc_c = MarkerCluster().add_to(g_clima)
   for _, p in base.dropna(subset=["temp_media_c"]).iterrows():
       ll = 0 if pd.isna(p["precipitacion_mm"]) else float(p["precipitacion_mm"])
       folium.CircleMarker(
           [p["lat"], p["lon"]], radius=4 + min(ll, 60) / 8,
           color=col_temp(float(p["temp_media_c"])), fill=True, fill_opacity=0.8,
-          tooltip=f"{p['ciudad']}: {p['temp_media_c']:.1f} °C · {ll:.1f} mm",
-          popup=popup("clima", p, [("Temp. media", f"{p['temp_media_c']:.1f} °C"),
-                          ("Precipitación", f"{ll:.1f} mm"), ("Viento máx", f"{f1(p['viento_max_kmh'])} km/h")]),
+          tooltip=f"{p['ciudad']}: {p['temp_media_c']:.1f} C · {ll:.1f} mm",
+          popup=popup("clima", p, [("Temp. media", f"{p['temp_media_c']:.1f} C"),
+                          ("Precipitacion", f"{ll:.1f} mm"), ("Viento max", f"{f1(p['viento_max_kmh'])} km/h")]),
       ).add_to(mc_c)
   g_clima.add_to(m)
 
-  g_agua = folium.FeatureGroup(name="Agua · Caudal (log)", show=False)
+  g_agua = folium.FeatureGroup(name="Agua - Caudal (log)", show=False)
   mc_h = MarkerCluster().add_to(g_agua)
   for _, p in base.dropna(subset=["caudal_m3s"]).iterrows():
       qq = float(p["caudal_m3s"])
       folium.CircleMarker(
           [p["lat"], p["lon"]], radius=3 + 4 * math.log10(1 + qq),
           color="#01497c", fill=True, fill_opacity=0.75,
-          tooltip=f"{p['ciudad']}: {qq:,.0f} m³/s",
+          tooltip=f"{p['ciudad']}: {qq:,.0f} m3/s",
           popup=popup("agua", p, [("Caudal", f"{qq:,.0f} m³/s"), ("Tipo", "Cuenca" if p.get("es_cuenca") else "Ciudad")]),
       ).add_to(mc_h)
   g_agua.add_to(m)
@@ -347,7 +347,7 @@ pio.templates.default = "plotly_white+eco"
   :::
 </div>
 
-## 02 · Análisis cruzado — Hallazgos de los datos
+## 02 · Analisis cruzado — Hallazgos de los datos
 
 <section class="analisis-dedicado">
 
@@ -360,23 +360,23 @@ import plotly.express as px
 cru = base.dropna(subset=["temp_media_c", "pm25_media"])
 fig1 = px.scatter(cru, x="temp_media_c", y="pm25_media", color="region", hover_name="ciudad",
                   title="Temp. media vs PM2.5",
-                  labels={"temp_media_c": "Temp. media °C", "pm25_media": "PM2.5 µg/m³"})
+                  labels={"temp_media_c": "Temp. media C", "pm25_media": "PM2.5 ug/m3"})
 fig1.add_hline(y=15, line_dash="dash", line_color="#2d6a4f",
-               annotation_text="Guía OMS 24h: 15 µg/m³")
+               annotation_text="Guía OMS 24h: 15 ug/m3")
 fig1.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
 fig1.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
 
 cru2 = base.dropna(subset=["precipitacion_mm", "us_aqi_max"])
 fig2 = px.scatter(cru2, x="precipitacion_mm", y="us_aqi_max", color="region", hover_name="ciudad",
                   title="Precipitación vs AQI máximo",
-                  labels={"precipitacion_mm": "Precipitación mm", "us_aqi_max": "AQI US máx"})
+                  labels={"precipitacion_mm": "Precipitacion mm", "us_aqi_max": "AQI US max"})
 fig2.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
 fig2.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
 ```
 
 </section>
 
-## 03 · Evolución diaria (slider temporal)
+## 03 · Evolucion diaria (slider temporal)
 
 <section class="analisis-dedicado">
 
@@ -423,7 +423,7 @@ for _, p in hh.sort_values("fecha").iterrows():
         "geometry": {"type": "Point", "coordinates": [float(p["lon"]), float(p["lat"])]},
         "properties": {
             "time": f"{p['fecha']}T00:00:00",
-            "popup": f"<b>{p['ciudad']}</b> ({p['fecha']}): {p['pm25_media']:.1f} µg/m³",
+            "popup": f"<b>{p['ciudad']}</b> ({p['fecha']}): {p['pm25_media']:.1f} ug/m3",
             "icon": "circle",
             "iconstyle": {"fillColor": c, "fillOpacity": 0.85, "color": c,
                           "radius": 5 + min(float(p["pm25_media"]), 150) / 15},
