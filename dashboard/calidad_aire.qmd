@@ -203,12 +203,15 @@ m
 #| label: ml-clasificacion-aire
 #| output: asis
 from src.ml import modelos
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 
-# Preparar datos para clasificación de categoría OMS (usando RandomForest desde cero)
+# Preparar datos para clasificación de categoría OMS
 feat_cols = ["pm25_media", "pm10_media", "o3_media", "no2_media", "so2_media", "co_media"]
 df_ml = base.dropna(subset=feat_cols + ["categoria_pm25_aqi"]).copy()
 
@@ -218,37 +221,25 @@ if len(df_ml) > 20:
     clases = sorted(df_ml["categoria_pm25_aqi"].unique())
 
     # Codificar etiquetas a enteros
-    mapa_clase = {c: i for i, c in enumerate(clases)}
-    y = np.array([mapa_clase[c] for c in y_raw])
+    le = LabelEncoder()
+    y = le.fit_transform(y_raw)
 
-    # Split train/test simple
-    n = len(X)
-    rng = np.random.default_rng(42)
-    idx = rng.permutation(n)
-    n_test = int(n * 0.25)
-    te_idx = idx[:n_test]
-    tr_idx = idx[n_test:]
+    # Split train/test con stratify
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
 
-    Xtr, Xte = X[tr_idx], X[te_idx]
-    ytr, yte = y[tr_idx], y[te_idx]
-
-    # Entrenar Random Forest desde cero
-    rf = modelos.RandomForestRegressor(n_arboles=25, max_depth=8, seed=42)
-    rf.fit(Xtr, ytr.astype(float))
-    ypred_num = rf.predict(Xte)
-    # Redondear a clase más cercana
-    ypred = np.clip(np.round(ypred_num).astype(int), 0, len(clases) - 1)
+    # Entrenar Random Forest de scikit-learn
+    clf = modelos.RandomForestClassifier(n_arboles=100, max_depth=8, seed=42, class_weight="balanced")
+    clf.fit(Xtr, ytr)
+    ypred = clf.predict(Xte)
 
     acc = float((ypred == yte).mean())
     print("<div class='ml-card'>")
-    print(f"<h3>Random Forest (desde cero) — Clasificación categoría OMS</h3>")
+    print(f"<h3>Random Forest (scikit-learn) — Clasificación categoría OMS</h3>")
     print(f"<p>Exactitud: <b>{acc:.1%}</b> · puntos entrenados: <b>{len(df_ml)}</b> · clases: {clases}</p>")
     print("</div>")
 
     # Matriz de confusión
-    cm = np.zeros((len(clases), len(clases)), dtype=int)
-    for real, pred in zip(yte, ypred):
-        cm[real, pred] += 1
+    cm = confusion_matrix(yte, ypred)
     fig_cm = go.Figure(data=go.Heatmap(
         z=cm,
         x=[f"Pred: {c}" for c in clases],
@@ -260,13 +251,11 @@ if len(df_ml) > 20:
                          margin=dict(l=50, r=20, t=60, b=40))
     fig_cm.show(config={"responsive": True, "displaylogo": False})
 
-    # Importancia de features (usando varianza de predicción por árbol como proxy)
-    # Para RandomForest desde cero, usamos correlación feature-target como proxy simple
-    imp_data = []
-    for i, col in enumerate(feat_cols):
-        corr_feat_target = float(np.corrcoef(X[:, i], y)[0, 1])
-        imp_data.append({"contaminante": col, "importancia": abs(corr_feat_target)})
-    imp = pd.DataFrame(imp_data).sort_values("importancia", ascending=True)
+    # Importancia de features
+    imp = pd.DataFrame({
+        "contaminante": feat_cols,
+        "importancia": clf.feature_importances_()
+    }).sort_values("importancia", ascending=True)
     fig_imp = px.bar(imp, x="importancia", y="contaminante", orientation="h",
                      title="Importencia de variables — Clasificación de calidad del aire",
                      color_discrete_sequence=["#ee9b00"])
@@ -332,4 +321,4 @@ fig3.update_layout(title="Matriz de correlación — Contaminantes y AQI",
 fig3.show(config={"responsive": True, "displaylogo": False})
 ```
 
-> Bandas de color: breakpoints del AQI (EPA EE. UU.). Línea verde: guía OMS 2021 (PM2.5 24h ≤ 15 µg/m³). Bandas calculadas en `src/transform/indicadores.py`. ML implementado con scikit-learn (clasificación categoría OMS) y `src/ml/modelos.py` (modelos desde cero).
+> Bandas de color: breakpoints del AQI (EPA EE. UU.). Línea verde: guía OMS 2021 (PM2.5 24h ≤ 15 µg/m³). Bandas calculadas en `src/transform/indicadores.py`. ML implementado con scikit-learn (clasificación categoría OMS) y `src/ml/modelos.py` (backend scikit-learn).

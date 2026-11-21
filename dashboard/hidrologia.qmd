@@ -290,7 +290,7 @@ if len(df_reg) > 20:
 
     Xtr, Xte, ytr, yte = modelos._train_test_split(X, y, test_size=0.25, seed=42)
 
-    # Random Forest desde cero
+    # Random Forest (scikit-learn)
     rf = modelos.RandomForestRegressor(n_arboles=30, max_depth=8, seed=42)
     rf.fit(Xtr, ytr)
     ypred_log = rf.predict(Xte)
@@ -305,7 +305,7 @@ if len(df_reg) > 20:
     print("<h3>Predicción de caudal — Regresión (log-transformado)</h3>")
     print("<table>")
     print(f"<tr><td><b>Modelo</b></td><td><b>RMSE</b></td><td><b>MAE</b></td><td><b>R²</b></td></tr>")
-    print(f"<tr><td>Random Forest (desde cero)</td><td>{rmse_c:,.0f} m3/s</td><td>{mae_c:,.0f} m3/s</td><td>{r2_c:.3f}</td></tr>")
+    print(f"<tr><td>Random Forest (scikit-learn)</td><td>{rmse_c:,.0f} m3/s</td><td>{mae_c:,.0f} m3/s</td><td>{r2_c:.3f}</td></tr>")
     print("</table>")
     print("</div>")
 
@@ -362,4 +362,4 @@ fig2.update_layout(
 fig2.show(config={"responsive": True, "displaylogo": False})
 ```
 
-> ML implementado con `src/ml/modelos.py` (Isolation Forest, Random Forest desde cero con numpy — sin dependencias externas pesadas). GloFAS es malla gruesa (~10 km): útil para comparar cuencas, no para crecidas locales (ver [Datos](datos.qmd)).
+> ML implementado con `src/ml/modelos.py` (Isolation Forest, Random Forest — backend scikit-learn). GloFAS es malla gruesa (~10 km): útil para comparar cuencas, no para crecidas locales (ver [Datos](datos.qmd)).
