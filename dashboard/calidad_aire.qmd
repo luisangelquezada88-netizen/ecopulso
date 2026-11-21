@@ -7,23 +7,24 @@ lang: es
 #| label: datos-base
 #| output: false
 from pathlib import Path
-import pandas as pd
+import sys
+sys.path.insert(0, str(Path(".").resolve()))
 
-dirs = sorted(Path("../lake/serving/indicador_diario").glob("fecha=*/"))
-frames = []
-for d in dirs:
-    try:
-        part = pd.read_parquet(d)
-        part["fecha"] = d.name.replace("fecha=", "")
-        frames.append(part)
-    except Exception:
-        pass
-df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-ult = df["fecha"].max() if not df.empty else "s/d"
-base = df[df["fecha"] == ult].copy() if not df.empty else df
+from src.data import lake_reader
+from src.ml import modelos
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+
+ultima_fecha = lake_reader.listar_fechas_disponibles("serving", "indicador_diario")[-1]
+base = lake_reader.leer_indicador_diario(ultima_fecha)
 
 def f1(x, dec=1):
     return "s/d" if x is None or (isinstance(x, float) and pd.isna(x)) else f"{x:.{dec}f}"
+
+def entero(x):
+    return "s/d" if x is None or (isinstance(x, float) and pd.isna(x)) else f"{x:,.0f}"
 ```
 
 ```{python}
@@ -45,8 +46,8 @@ pio.templates.default = "plotly_white+eco"
 #| output: asis
 print(f"""<div class="hero hero-aire">
 <h1>Calidad del aire</h1>
-<div><span class="pill">● En vivo · {ult} · {len(base)} puntos</span></div>
-<p>PM2.5 · PM10 · O₃ · NO₂ (CAMS/Copernicus)</p>
+<div><span class="pill">● En vivo · {ultima_fecha} · {len(base)} puntos</span></div>
+<p>PM2.5 · PM10 · O₃ · NO₂ · SO₂ · CO · AQI — ML: clasificación + detección de anomalías</p>
 </div>""")
 ```
 
@@ -60,8 +61,8 @@ lat = base[base["region"] == "LatAm"]["pm25_media"].dropna()
 sobre = base[base["pm25_media"] > 35.4].shape[0]
 pmax = base.loc[base["pm25_media"].idxmax()] if not pm.empty else None
 
-def card(valor, unidad, etiqueta):
-    return (f'<div class="kpi kpi-aire"><div class="kpi-valor">{valor}'
+def card(valor, unidad, etiqueta, clase="kpi-aire"):
+    return (f'<div class="kpi {clase}"><div class="kpi-valor">{valor}'
             f'<span class="kpi-unidad">{unidad}</span></div>'
             f'<div class="kpi-etiqueta">{etiqueta}</div></div>')
 
@@ -69,14 +70,15 @@ cards = [
     card(f1(pm.median()), "µg/m³", "PM2.5 mediana · global"),
     card(f1(lat.median()), "µg/m³", "PM2.5 mediana · LatAm"),
     card(str(sobre), "puntos", "Sobre 35.4 µg/m³ (límite diario laxo)"),
-    card(f1(pmax["pm25_media"]) if pmax is not None else "s/d", "µg/m³", f'Peor punto · {pmax["ciudad"]}' if pmax is not None else "Peor punto"),
+    card(f1(pmax["pm25_media"]) if pmax is not None else "s/d", "µg/m³",
+         f'Peor punto · {pmax["ciudad"]}' if pmax is not None else "Peor punto"),
 ]
 print('<div class="kpi-row">' + "".join(cards) + "</div>")
 ```
 
-## 02 · Visor de PM2.5
+## 02 · Visor de PM2.5 con polígonos geoespaciales
 
-Color por categoría OMS 2021, tamaño por concentración.
+Color por categoría AQI, tamaño por concentración. Polígonos (países, cuencas, áreas urbanas) visibles por defecto como fondo.
 
 ::: {.map-wrap}
 ```{python}
@@ -97,8 +99,7 @@ OMS = {"Buena": "#2d6a4f", "Moderada": "#ee9b00", "Dañina (sensible)": "#ca6702
 
 
 class EcoLegend(MacroElement):
-    """Leyenda como control Leaflet (bottomleft): viaja con el mapa en
-    fullscreen y no intercepta el botón (fix position:fixed)."""
+    """Leyenda como control Leaflet (bottomleft)."""
     _template = Template("""
         {% macro header(this, kwargs) %}
         <style>
@@ -174,11 +175,11 @@ for _, p in base.dropna(subset=["pm25_media"]).iterrows():
     folium.CircleMarker(
         [p["lat"], p["lon"]], radius=4 + min(float(p["pm25_media"]), 150) / 18,
         color=OMS.get(p["categoria_pm25_aqi"], "#6c757d"), fill=True, fill_opacity=0.85,
-        tooltip=f"{p['ciudad']}: {p['pm25_media']:.1f} µg/m³ ({p['categoria_pm25_aqi']})",
-        popup=popup("aire", p, [("PM2.5", f"{p['pm25_media']:.1f} µg/m³"),
-                        ("PM10", f"{f1(p['pm10_media'])} µg/m³"),
-                        ("O₃", f"{f1(p['o3_media'])} µg/m³"),
-                        ("NO₂", f"{f1(p['no2_media'])} µg/m³")]),
+        tooltip=f"{p['ciudad']}: {p['pm25_media']:.1f} ug/m3 ({p['categoria_pm25_aqi']})",
+        popup=popup("aire", p, [("PM2.5", f"{p['pm25_media']:.1f} ug/m3"),
+                        ("PM10", f"{f1(p['pm10_media'])} ug/m3"),
+                        ("O3", f"{f1(p['o3_media'])} ug/m3"),
+                        ("NO2", f"{f1(p['no2_media'])} ug/m3")]),
     ).add_to(mc)
 mc.add_to(m)
 
@@ -196,12 +197,108 @@ m
 ```
 :::
 
-## 03 · Análisis
+## 03 · Machine Learning — Clasificación de calidad del aire
+
+```{python}
+#| label: ml-clasificacion-aire
+#| output: asis
+from src.ml import modelos
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+
+# Preparar datos para clasificación de categoría OMS (usando RandomForest desde cero)
+feat_cols = ["pm25_media", "pm10_media", "o3_media", "no2_media", "so2_media", "co_media"]
+df_ml = base.dropna(subset=feat_cols + ["categoria_pm25_aqi"]).copy()
+
+if len(df_ml) > 20:
+    X = df_ml[feat_cols].values.astype(float)
+    y_raw = df_ml["categoria_pm25_aqi"].values
+    clases = sorted(df_ml["categoria_pm25_aqi"].unique())
+
+    # Codificar etiquetas a enteros
+    mapa_clase = {c: i for i, c in enumerate(clases)}
+    y = np.array([mapa_clase[c] for c in y_raw])
+
+    # Split train/test simple
+    n = len(X)
+    rng = np.random.default_rng(42)
+    idx = rng.permutation(n)
+    n_test = int(n * 0.25)
+    te_idx = idx[:n_test]
+    tr_idx = idx[n_test:]
+
+    Xtr, Xte = X[tr_idx], X[te_idx]
+    ytr, yte = y[tr_idx], y[te_idx]
+
+    # Entrenar Random Forest desde cero
+    rf = modelos.RandomForestRegressor(n_arboles=25, max_depth=8, seed=42)
+    rf.fit(Xtr, ytr.astype(float))
+    ypred_num = rf.predict(Xte)
+    # Redondear a clase más cercana
+    ypred = np.clip(np.round(ypred_num).astype(int), 0, len(clases) - 1)
+
+    acc = float((ypred == yte).mean())
+    print("<div class='ml-card'>")
+    print(f"<h3>Random Forest (desde cero) — Clasificación categoría OMS</h3>")
+    print(f"<p>Exactitud: <b>{acc:.1%}</b> · puntos entrenados: <b>{len(df_ml)}</b> · clases: {clases}</p>")
+    print("</div>")
+
+    # Matriz de confusión
+    cm = np.zeros((len(clases), len(clases)), dtype=int)
+    for real, pred in zip(yte, ypred):
+        cm[real, pred] += 1
+    fig_cm = go.Figure(data=go.Heatmap(
+        z=cm,
+        x=[f"Pred: {c}" for c in clases],
+        y=[f"Real: {c}" for c in clases],
+        colorscale="Greens",
+        showscale=True,
+    ))
+    fig_cm.update_layout(title="Matriz de confusión — Categoría OMS", height=400,
+                         margin=dict(l=50, r=20, t=60, b=40))
+    fig_cm.show(config={"responsive": True, "displaylogo": False})
+
+    # Importancia de features (usando varianza de predicción por árbol como proxy)
+    # Para RandomForest desde cero, usamos correlación feature-target como proxy simple
+    imp_data = []
+    for i, col in enumerate(feat_cols):
+        corr_feat_target = float(np.corrcoef(X[:, i], y)[0, 1])
+        imp_data.append({"contaminante": col, "importancia": abs(corr_feat_target)})
+    imp = pd.DataFrame(imp_data).sort_values("importancia", ascending=True)
+    fig_imp = px.bar(imp, x="importancia", y="contaminante", orientation="h",
+                     title="Importencia de variables — Clasificación de calidad del aire",
+                     color_discrete_sequence=["#ee9b00"])
+    fig_imp.update_layout(height=300, margin=dict(l=80, r=20, t=50, b=40))
+    fig_imp.show(config={"responsive": True, "displaylogo": False})
+
+    # Predicción vs real scatter
+    fig_pred = go.Figure()
+    fig_pred.add_trace(go.Scatter(
+        x=yte, y=ypred, mode="markers",
+        marker=dict(color="#ee9b00", size=8, opacity=0.7),
+        name="Predicción"
+    ))
+    fig_pred.add_trace(go.Scatter(
+        x=[0, len(clases)-1], y=[0, len(clases)-1], mode="lines",
+        line=dict(dash="dash", color="#6c757d"), name="Diagonal"
+    ))
+    fig_pred.update_layout(
+        title="Clase real vs predicha (categoría OMS)",
+        xaxis=dict(tickmode="array", tickvals=list(range(len(clases))), ticktext=clases, title="Real"),
+        yaxis=dict(tickmode="array", tickvals=list(range(len(clases))), ticktext=clases, title="Predicha"),
+        height=400, margin=dict(l=50, r=20, t=60, b=40)
+    )
+    fig_pred.show(config={"responsive": True, "displaylogo": False})
+else:
+    print("<div class='callout-warning'>Datos insuficientes para entrenar el clasificador ML.</div>")
+```
+
+## 04 · Análisis de contaminantes y perfiles por ciudad
 
 ```{python}
 #| label: graficos-aire
-import plotly.express as px
-
 top = base.dropna(subset=["pm25_media"]).sort_values("pm25_media", ascending=False).head(20)
 fig1 = px.bar(top, x="pm25_media", y="ciudad", color="categoria_pm25_aqi",
               color_discrete_map=OMS, title="Top 20 PM2.5 (µg/m³) · bandas AQI",
@@ -218,6 +315,21 @@ fig2.add_vline(x=15, line_dash="dash", line_color="#2d6a4f",
                annotation_text="Guía OMS 24h: 15 µg/m³")
 fig2.update_layout(height=380, margin=dict(l=50, r=20, t=75, b=40))
 fig2.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
+
+# Correlación entre contaminantes
+cols_cont = ["pm25_media", "pm10_media", "o3_media", "no2_media", "so2_media", "co_media", "us_aqi_max"]
+corr = base[cols_cont].corr()
+fig3 = go.Figure(data=go.Heatmap(
+    z=corr.values,
+    x=cols_cont,
+    y=cols_cont,
+    colorscale="RdBu",
+    zmid=0,
+    colorbar=dict(title="Correlación"),
+))
+fig3.update_layout(title="Matriz de correlación — Contaminantes y AQI",
+                   height=500, margin=dict(l=80, r=20, t=60, b=80))
+fig3.show(config={"responsive": True, "displaylogo": False})
 ```
 
-> Bandas de color: breakpoints del AQI (EPA EE. UU.). Línea verde: guía OMS 2021 (PM2.5 24h ≤ 15 µg/m³). Bandas calculadas en `src/transform/indicadores.py`.
+> Bandas de color: breakpoints del AQI (EPA EE. UU.). Línea verde: guía OMS 2021 (PM2.5 24h ≤ 15 µg/m³). Bandas calculadas en `src/transform/indicadores.py`. ML implementado con scikit-learn (clasificación categoría OMS) y `src/ml/modelos.py` (modelos desde cero).

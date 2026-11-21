@@ -7,20 +7,22 @@ lang: es
 #| label: datos-base
 #| output: false
 from pathlib import Path
-import pandas as pd
+import sys
+sys.path.insert(0, str(Path(".").resolve()))
 
-dirs = sorted(Path("../lake/serving/indicador_diario").glob("fecha=*/"))
-frames = []
-for d in dirs:
-    try:
-        part = pd.read_parquet(d)
-        part["fecha"] = d.name.replace("fecha=", "")
-        frames.append(part)
-    except Exception:
-        pass
-df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-ult = df["fecha"].max() if not df.empty else "s/d"
-base = df[df["fecha"] == ult].copy() if not df.empty else df
+from src.data import lake_reader
+from src.ml import modelos
+import pandas as pd
+import numpy as np
+import math
+import plotly.express as px
+import plotly.graph_objects as go
+
+ultima_fecha = lake_reader.listar_fechas_disponibles("serving", "indicador_diario")[-1]
+base = lake_reader.leer_indicador_diario(ultima_fecha)
+
+def f1(x, dec=1):
+    return "s/d" if x is None or (isinstance(x, float) and pd.isna(x)) else f"{x:.{dec}f}"
 
 def entero(x):
     return "s/d" if x is None or (isinstance(x, float) and pd.isna(x)) else f"{x:,.0f}"
@@ -45,8 +47,8 @@ pio.templates.default = "plotly_white+eco"
 #| output: asis
 print(f"""<div class="hero hero-agua">
 <h1>Hidrología</h1>
-<div><span class="pill">● En vivo · {ult} · {len(base)} puntos</span></div>
-<p>Caudal diario GloFAS</p>
+<div><span class="pill">● En vivo · {ultima_fecha} · {len(base)} puntos</span></div>
+<p>Caudal diario GloFAS — ML: detección de sequía/inundación + predicción de caudal</p>
 </div>""")
 ```
 
@@ -59,30 +61,29 @@ q = base.dropna(subset=["caudal_m3s"])
 cu = q[q.get("es_cuenca", False)] if "es_cuenca" in q.columns else q.iloc[0:0]
 qmax = q.loc[q["caudal_m3s"].idxmax()] if not q.empty else None
 
-def card(valor, unidad, etiqueta):
-    return (f'<div class="kpi kpi-agua"><div class="kpi-valor">{valor}'
+def card(valor, unidad, etiqueta, clase="kpi-agua"):
+    return (f'<div class="kpi {clase}"><div class="kpi-valor">{valor}'
             f'<span class="kpi-unidad">{unidad}</span></div>'
             f'<div class="kpi-etiqueta">{etiqueta}</div></div>')
 
 cards = [
-    card(entero(qmax["caudal_m3s"]) if qmax is not None else "s/d", "m³/s",
+    card(entero(qmax["caudal_m3s"]) if qmax is not None else "s/d", "m3/s",
          f'Mayor caudal · {qmax["ciudad"]}' if qmax is not None else "Mayor caudal"),
-    card(entero(q["caudal_m3s"].median()) if not q.empty else "s/d", "m³/s", "Caudal mediano · red"),
-    card(entero(cu["caudal_m3s"].median()) if not cu.empty else "s/d", "m³/s", "Caudal mediano · cuencas"),
+    card(entero(q["caudal_m3s"].median()) if not q.empty else "s/d", "m3/s", "Caudal mediano · red"),
+    card(entero(cu["caudal_m3s"].median()) if not cu.empty else "s/d", "m3/s", "Caudal mediano · cuencas"),
     card(str(len(q)), "puntos", "Puntos con dato de caudal"),
 ]
 print('<div class="kpi-row">' + "".join(cards) + "</div>")
 ```
 
-## 02 · Visor de caudales
+## 02 · Visor de caudales con polígonos geoespaciales
 
-Tamaño en escala logarítmica: el Amazonas (≈70 000 m³/s) aplastaría todo en escala lineal. Los puntos marcados como cuenca son cauces reales; el resto es celda de malla gruesa (ver nota).
+Tamaño en escala logarítmica: el Amazonas (≈70 000 m³/s) aplastaría todo en escala lineal. Los puntos marcados como cuenca son cauces reales; el resto es celda de malla gruesa.
 
 ::: {.map-wrap}
 ```{python}
 #| label: visor-agua
 #| fig-cap: "Caudal GloFAS por punto (tamaño logarítmico)"
-import math
 import folium
 from folium.plugins import MarkerCluster, Fullscreen, MiniMap
 from branca.element import MacroElement
@@ -96,8 +97,7 @@ ESRI_SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/M
 
 
 class EcoLegend(MacroElement):
-    """Leyenda como control Leaflet (bottomleft): viaja con el mapa en
-    fullscreen y no intercepta el botón (fix position:fixed)."""
+    """Leyenda como control Leaflet (bottomleft)."""
     _template = Template("""
         {% macro header(this, kwargs) %}
         <style>
@@ -176,8 +176,8 @@ for _, p in base.dropna(subset=["caudal_m3s"]).iterrows():
         [p["lat"], p["lon"]], radius=3 + 4 * math.log10(1 + qq),
         color="#01497c" if es_c else "#219ebc",
         fill=True, fill_opacity=0.8, weight=3 if es_c else 2,
-        tooltip=f"{p['ciudad']}: {qq:,.0f} m³/s",
-        popup=popup("agua", p, [("Caudal", f"{qq:,.0f} m³/s"), ("Tipo", "Cuenca" if es_c else "Ciudad (malla)")]),
+        tooltip=f"{p['ciudad']}: {qq:,.0f} m3/s",
+        popup=popup("agua", p, [("Caudal", f"{qq:,.0f} m3/s"), ("Tipo", "Cuenca" if es_c else "Ciudad (malla)")]),
     ).add_to(mc)
 mc.add_to(m)
 
@@ -196,21 +196,170 @@ m
 ```
 :::
 
-## 03 · Análisis
+## 03 · Machine Learning — Detección de sequía e inundación (Isolation Forest)
+
+```{python}
+#| label: ml-anomalias-hidrologia
+#| output: asis
+from src.ml import modelos
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+
+# Isolation Forest para detectar caudales anómalos (sequía o inundación)
+cols_hidro = ["caudal_m3s", "precipitacion_mm", "temp_media_c"]
+df_hidro = base.dropna(subset=cols_hidro).copy()
+
+if len(df_hidro) > 10:
+    X, _ = modelos.preparar_matriz(df_hidro, cols_hidro, "caudal_m3s")
+
+    iso = modelos.IsolationForest(n_arboles=50, max_depth=10, seed=42)
+    iso.fit(X)
+    preds = iso.predict(X)
+    scores = iso.decision_function(X)
+
+    df_hidro = df_hidro.copy()
+    df_hidro["anomalia"] = preds
+    df_hidro["score_anomalia"] = scores
+
+    n_anom = int((preds == -1).sum())
+    print("<div class='ml-card'>")
+    print("<h3>Isolation Forest — Detección de eventos hidrológicos extremos</h3>")
+    print(f"<p>Caudales anómalos detectados: <b>{n_anom} de {len(preds)}</b> puntos.</p>")
+    print("</div>")
+
+    # Tabla de anomalías
+    anom = df_hidro[df_hidro["anomalia"] == -1].sort_values("caudal_m3s")
+    if not anom.empty:
+        print("<table>")
+        print("<tr><th>Punto</th><th>País</th><th>Caudal m3/s</th><th>Precip mm</th><th>Tipo</th></tr>")
+        for _, r in anom.head(10).iterrows():
+            tipo = "Cuenca" if r.get("es_cuenca", False) else "Malla"
+            print(f"<tr><td>{r['ciudad']}</td><td>{r['pais']}</td><td>{r['caudal_m3s']:,.0f}</td><td>{r['precipitacion_mm']:.1f}</td><td>{tipo}</td></tr>")
+        print("</table>")
+
+    # Scatter: caudal vs precipitación coloreado por anomalía
+    fig1 = px.scatter(df_hidro, x="precipitacion_mm", y="caudal_m3s", color="anomalia",
+                      hover_name="ciudad", hover_data=["pais"],
+                      log_y=True,
+                      color_discrete_map={1: "#2d6a4f", -1: "#bb3e03"},
+                      title="Caudal vs Precipitación — Anomalías detectadas (Isolation Forest)",
+                      labels={"precipitacion_mm": "Precipitación mm", "caudal_m3s": "Caudal m3/s"})
+    fig1.update_layout(height=450, margin=dict(l=50, r=20, t=60, b=40))
+    fig1.show(config={"responsive": True, "displaylogo": False})
+
+    # Histograma de scores de anomalía
+    fig2 = go.Figure()
+    fig2.add_trace(go.Histogram(
+        x=df_hidro["score_anomalia"],
+        nbinsx=30,
+        marker_color="#219ebc",
+        opacity=0.7,
+        name="Score de anomalía"
+    ))
+    fig2.add_vline(x=float(iso.umbral_anomalia_), line_dash="dash", line_color="#bb3e03",
+                   annotation_text="Umbral anomalía")
+    fig2.update_layout(title="Distribución de scores de anomalía",
+                       xaxis_title="Score (más bajo = más anómalo)",
+                       yaxis_title="Frecuencia",
+                       height=350, margin=dict(l=50, r=20, t=50, b=40))
+    fig2.show(config={"responsive": True, "displaylogo": False})
+else:
+    print("<div class='callout-warning'>Datos insuficientes para Isolation Forest.</div>")
+```
+
+## 04 · Machine Learning — Predicción de caudal (Regresión)
+
+```{python}
+#| label: ml-prediccion-caudal
+#| output: asis
+from src.ml import modelos
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+
+# Regresión para predecir caudal a partir de variables climáticas
+cols_pred = ["precipitacion_mm", "temp_media_c", "viento_max_kmh", "radiacion_mj_m2", "et0_mm"]
+df_reg = base.dropna(subset=cols_pred + ["caudal_m3s"]).copy()
+
+if len(df_reg) > 20:
+    # Caudal tiene distribucion muy sesgada: usar log(1 + caudal) como target
+    X, y_raw = modelos.preparar_matriz(df_reg, cols_pred, "caudal_m3s")
+    y = np.log1p(y_raw)  # transformacion log para estabilizar varianza
+
+    Xtr, Xte, ytr, yte = modelos._train_test_split(X, y, test_size=0.25, seed=42)
+
+    # Random Forest desde cero
+    rf = modelos.RandomForestRegressor(n_arboles=30, max_depth=8, seed=42)
+    rf.fit(Xtr, ytr)
+    ypred_log = rf.predict(Xte)
+    ypred = np.expm1(ypred_log)  # volver a escala original
+    yte_real = np.expm1(yte)
+
+    rmse_c = modelos.rmse(yte_real, ypred)
+    mae_c = modelos.mae(yte_real, ypred)
+    r2_c = modelos.r2_score(yte_real, ypred)
+
+    print("<div class='ml-card'>")
+    print("<h3>Predicción de caudal — Regresión (log-transformado)</h3>")
+    print("<table>")
+    print(f"<tr><td><b>Modelo</b></td><td><b>RMSE</b></td><td><b>MAE</b></td><td><b>R²</b></td></tr>")
+    print(f"<tr><td>Random Forest (desde cero)</td><td>{rmse_c:,.0f} m3/s</td><td>{mae_c:,.0f} m3/s</td><td>{r2_c:.3f}</td></tr>")
+    print("</table>")
+    print("</div>")
+
+    # Predicción vs real (escala log para visualizar)
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(
+        x=np.log1p(yte_real), y=np.log1p(ypred), mode="markers",
+        marker=dict(color="#01497c", size=8, opacity=0.7),
+        name="Predicción RF"
+    ))
+    fig1.add_trace(go.Scatter(
+        x=[np.log1p(yte_real.min()), np.log1p(yte_real.max())],
+        y=[np.log1p(yte_real.min()), np.log1p(yte_real.max())],
+        mode="lines", line=dict(dash="dash", color="#6c757d"), name="Diagonal"
+    ))
+    fig1.update_layout(
+        title="Caudal real vs predicho (escala log1p)",
+        xaxis_title="log1p(Caudal real)",
+        yaxis_title="log1p(Caudal predicho)",
+        height=400, margin=dict(l=50, r=20, t=60, b=40)
+    )
+    fig1.show(config={"responsive": True, "displaylogo": False})
+else:
+    print("<div class='callout-warning'>Datos insuficientes para entrenar el modelo de predicción de caudal.</div>")
+```
+
+## 05 · Análisis hidrológico clásico
 
 ```{python}
 #| label: graficos-agua
-import plotly.express as px
-
 top = base.dropna(subset=["caudal_m3s"]).sort_values("caudal_m3s", ascending=False).head(20)
 fig = px.bar(top, x="caudal_m3s", y="ciudad", color="region", log_x=True,
-             title="Top 20 caudal (m³/s, escala log)",
-             labels={"caudal_m3s": "Caudal m³/s", "ciudad": "Punto"})
+             title="Top 20 caudal (m3/s, escala log)",
+             labels={"caudal_m3s": "Caudal m3/s", "ciudad": "Punto"})
 fig.update_layout(height=480, margin=dict(l=50, r=20, t=75, b=40))
 fig.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
-display(top[["ciudad", "pais", "caudal_m3s", "caudal_max_m3s"]])
+
+# Curva de duración de caudal (flow duration curve)
+q_sorted = np.sort(base["caudal_m3s"].dropna().values)[::-1]
+excedencia = np.arange(1, len(q_sorted) + 1) / len(q_sorted) * 100
+fig2 = go.Figure()
+fig2.add_trace(go.Scatter(
+    x=excedencia, y=q_sorted, mode="lines",
+    line=dict(color="#01497c", width=3),
+    name="Curva de duración"
+))
+fig2.update_layout(
+    title="Curva de duración de caudal (Flow Duration Curve)",
+    xaxis_title="Probabilidad de excedencia (%)",
+    yaxis_title="Caudal m3/s",
+    yaxis_type="log",
+    height=400, margin=dict(l=50, r=20, t=60, b=40)
+)
+fig2.show(config={"responsive": True, "displaylogo": False})
 ```
 
-::: {.callout-note}
-GloFAS es malla gruesa (~10 km): útil para comparar cuencas, no para crecidas locales (ver [Datos](datos.qmd)).
-:::
+> ML implementado con `src/ml/modelos.py` (Isolation Forest, Random Forest desde cero con numpy — sin dependencias externas pesadas). GloFAS es malla gruesa (~10 km): útil para comparar cuencas, no para crecidas locales (ver [Datos](datos.qmd)).
