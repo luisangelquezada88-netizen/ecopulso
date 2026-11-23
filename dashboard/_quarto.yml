@@ -10,7 +10,7 @@ website:
     search: false
     left:
       - href: index.qmd
-        text: Tablero
+        text: Visor
       - text: Ambiente
         menu:
           - href: calidad_aire.qmd
@@ -24,7 +24,7 @@ website:
       - href: acerca.qmd
         text: Acerca de
   page-footer:
-    left: "EcoPulso — versión beta. Datos abiertos sin validación oficial."
+    left: "EcoPulso · versión beta. Datos abiertos sin validación oficial."
     right: "Código abierto en GitHub"
 
 format:
@@ -36,7 +36,6 @@ format:
     css: styles.css
     include-after-body: plotly-mobile.html
     toc: true
-    embed-resources: true
 
 execute:
   freeze: auto

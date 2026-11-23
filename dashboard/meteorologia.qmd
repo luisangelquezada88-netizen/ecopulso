@@ -8,7 +8,10 @@ lang: es
 #| output: false
 from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(".").resolve()))
+ROOT = Path.cwd()
+if not (ROOT / "src").exists():
+    ROOT = ROOT.parent
+sys.path.insert(0, str(ROOT))
 
 from src.data import lake_reader
 from src.ml import modelos
@@ -94,7 +97,10 @@ from folium.template import Template
 import branca.colormap as cm
 
 import sys
-sys.path.insert(0, str(Path(".").resolve()))
+ROOT = Path.cwd()
+if not (ROOT / "src").exists():
+    ROOT = ROOT.parent
+sys.path.insert(0, str(ROOT))
 from src.geo.map_components import capas_poligonos, html_leyenda_poligonos
 
 ESRI_SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

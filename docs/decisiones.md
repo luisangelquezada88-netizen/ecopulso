@@ -96,3 +96,30 @@
   (4) anotaciones `::warning::` públicas (visibles sin logs) con el diagnóstico.
 - Deuda: probar Ubuntu 26 en rama aparte; el pin a 24.04 es temporal.
 - Backfill manual de 2026-10-21..25 para reparar la serie del slider.
+
+## D-15 — Visor único full-bleed y filtros reales (2026-11-23)
+- El índice deja de ser un tablero con dos mapas: un solo visor a ancho completo
+  (`100dvh - navbar`) y los análisis (KPIs, pulso diario, cruces) debajo en
+  `.main-container`. Se elimina el mapa duplicado del slider temporal.
+- El HTML anidado con 4+ espacios se interpretaba como bloque de código por
+  Pandoc. Se retira el `nav` duplicado (ya existe el navbar de Quarto) y todo el
+  HTML del visor se genera desde Python/Folium, no desde Markdown indentado.
+- Filtros de fecha, dominio y región **client-side**: se embebe un payload
+  compacto con todas las fechas del lake (43 al cierre) y JS reconstruye los
+  `circleMarker`. No hay recarga ni render por fecha; el botón ▶ anima la serie.
+- `FeatureGroup(show=False)` en Folium **no oculta** la capa (se sigue dibujando).
+  Por eso se abandona `LayerControl` y se usa un panel propio con registro de
+  capas, toggles y opacidad reales (países, cuencas, áreas urbanas, IDW).
+- Polígonos: países con relleno suave, cuencas con opacidad dependiente del zoom
+  (contorno a escala ciudad) y áreas urbanas visibles al acercar. Selector de
+  ciudad ordenado alfabéticamente para descubrir los polígonos urbanos.
+- CartoDB sigue vetado (API key). Fondo por defecto: Esri Light Gray + reference;
+  alternativas Esri Satellite, OSM y Esri Dark Gray. El IDW vive en un pane
+  propio debajo de polígonos y puntos.
+- `embed-resources: false` (antes `true`): el índice baja de ~21.5 MB a ~1.6 MB.
+  `paises_necesarios.geojson` se simplifica a 0.08° (1.6 MB → 0.47 MB).
+- Plotly se fija a `<6`: con Plotly 6/7, Quarto 1.11 emite un import ESM a
+  `cdn.plot.ly/plotly-*.min` (sin `.js`) que devuelve 403. Con 5.24 el import map
+  no se ejecuta y el sitio queda sin errores de consola (salvo favicon 404).
+- Las páginas temáticas conservan su visor propio y su TOC; solo se hace robusta
+  la inserción de `ROOT` para que `quarto render` funcione sin `PYTHONPATH`.

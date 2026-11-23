@@ -1,52 +1,659 @@
 ---
-title: "Tablero regional"
+title: "Visor ambiental"
 lang: es
+format:
+  html:
+    toc: false
+    page-layout: full
+    title-block: false
 ---
 
-<nav class="top-nav">
-  <div class="nav-container">
-    <a href="index.qmd" class="nav-brand">
-      <span class="brand-mark">E</span>
-      <span>EcoPulso · Observatorio Ambiental</span>
-    </a>
-    <div class="nav-spacer"></div>
-    <a href="calidad_aire.qmd" class="nav-link">Aire</a>
-    <a href="meteorologia.qmd" class="nav-link">Clima</a>
-    <a href="hidrologia.qmd" class="nav-link">Agua</a>
-    <a href="datos.qmd" class="nav-link">Datos</a>
-    <a href="acerca.qmd" class="nav-link">Acerca de</a>
+<div class="visor-app">
+
+::: {.map-wrap-full}
+```{python}
+#| label: visor-maestro
+import contextlib
+import io
+import math
+import sys
+from pathlib import Path
+
+import folium
+import pandas as pd
+from branca.element import MacroElement
+from folium.plugins import Fullscreen
+from folium.template import Template
+from folium.utilities import image_to_url
+
+ROOT = Path.cwd()
+if not (ROOT / "src").exists():
+    ROOT = ROOT.parent
+sys.path.insert(0, str(ROOT))
+
+from src.data import lake_reader
+from src.geo.map_components import capas_poligonos
+
+OMS = ["Buena", "Moderada", "Dañina (sensible)", "Dañina", "Muy dañina", "Peligrosa"]
+OMS_COLORES = {
+    "Buena": "#2d6a4f",
+    "Moderada": "#ee9b00",
+    "Dañina (sensible)": "#ca6702",
+    "Dañina": "#bb3e03",
+    "Muy dañina": "#9d0208",
+    "Peligrosa": "#6a040f",
+}
+
+fechas = lake_reader.listar_fechas_disponibles("serving", "indicador_diario")
+ult = fechas[-1] if fechas else "s/d"
+_log = io.StringIO()
+with contextlib.redirect_stdout(_log):
+    hist = lake_reader.leer_rango_fechas(fechas[0], ult) if fechas else pd.DataFrame()
+if hist.empty:
+    print("[visor] Sin datos en el lake. " + _log.getvalue()[:600])
+base = hist[hist["fecha"] == ult].copy() if not hist.empty else pd.DataFrame()
+
+_origen_puntos = hist if not hist.empty else base
+puntos_df = (
+    _origen_puntos[["punto_id", "ciudad", "pais", "region", "lat", "lon"]]
+    .drop_duplicates("punto_id")
+    .reset_index(drop=True)
+    if not _origen_puntos.empty
+    else pd.DataFrame(columns=["punto_id", "ciudad", "pais", "region", "lat", "lon"])
+)
+pidx = {pid: i for i, pid in enumerate(puntos_df["punto_id"])}
+
+
+def num(x):
+    if x is None or pd.isna(x):
+        return None
+    return float(x)
+
+
+fidx = {f: i for i, f in enumerate(fechas)}
+obs = []
+for _, r in hist.iterrows():
+    pid = pidx.get(r["punto_id"])
+    if pid is None:
+        continue
+    cat = r.get("categoria_pm25_aqi")
+    cat_i = OMS.index(cat) if isinstance(cat, str) and cat in OMS else -1
+    cuenca = 0
+    if "es_cuenca" in r and not pd.isna(r["es_cuenca"]):
+        cuenca = 1 if bool(r["es_cuenca"]) else 0
+    obs.append([
+        pid,
+        fidx[r["fecha"]],
+        num(r.get("pm25_media")),
+        cat_i,
+        num(r.get("us_aqi_max")),
+        num(r.get("temp_media_c")),
+        num(r.get("precipitacion_mm")),
+        num(r.get("viento_max_kmh")),
+        num(r.get("caudal_m3s")),
+        cuenca,
+    ])
+
+datos = {
+    "fechas": fechas,
+    "puntos": [
+        {
+            "c": r["ciudad"],
+            "p": r["pais"],
+            "r": r["region"],
+            "la": float(r["lat"]),
+            "lo": float(r["lon"]),
+        }
+        for _, r in puntos_df.iterrows()
+    ],
+    "obs": obs,
+    "oms": OMS,
+    "colores": [OMS_COLORES[c] for c in OMS],
+}
+
+g_paises, g_urbanas, g_cuencas = capas_poligonos()
+
+m = folium.Map(
+    location=[-12, -62],
+    zoom_start=3,
+    tiles=None,
+    control_scale=True,
+    preferCanvas=True,
+    scrollWheelZoom=False,
+    min_zoom=2,
+)
+for g in (g_paises, g_cuencas, g_urbanas):
+    if g:
+        g.add_to(m)
+
+idw_path = Path(lake_reader.LAKE_DIR) / "serving" / "superficies" / f"fecha={ult}" / "pm25.png"
+capas = {
+    "paises": g_paises.get_name() if g_paises else None,
+    "cuencas": g_cuencas.get_name() if g_cuencas else None,
+    "urbanas": g_urbanas.get_name() if g_urbanas else None,
+    "idw_url": image_to_url(str(idw_path)) if idw_path.exists() else None,
+}
+
+items_oms = "".join(
+    f"<div><span class='dot' style='color:{c}'>●</span> {k}</div>" for k, c in OMS_COLORES.items()
+)
+panel_html = """
+<div class="eco-hd">
+  <div>
+    <div class="eco-kicker">EcoPulso · visor ambiental</div>
+    <div class="eco-title">Red de monitoreo</div>
   </div>
-</nav>
+  <button type="button" class="eco-min" id="eco-collapse" aria-label="Contraer panel">−</button>
+</div>
+<div class="eco-body" id="eco-body">
+  <div class="eco-field">
+    <div class="eco-lab">Dominio</div>
+    <div class="eco-seg" id="eco-dominio">
+      <button type="button" data-v="aire" class="on">Aire</button>
+      <button type="button" data-v="clima">Clima</button>
+      <button type="button" data-v="agua">Agua</button>
+    </div>
+  </div>
+  <div class="eco-field">
+    <div class="eco-lab">Región</div>
+    <div class="eco-seg" id="eco-region">
+      <button type="button" data-v="todos" class="on">Todas</button>
+      <button type="button" data-v="LatAm">LatAm</button>
+      <button type="button" data-v="Mundo">Mundo</button>
+    </div>
+  </div>
+  <div class="eco-field">
+    <div class="eco-lab">Fecha <span id="eco-fecha-val" class="eco-val"></span></div>
+    <div class="eco-fecha">
+      <button type="button" id="eco-play" class="eco-play" aria-label="Reproducir serie">▶</button>
+      <input type="range" id="eco-fecha" min="0" max="13" step="1" value="13">
+    </div>
+    <div class="eco-hint" id="eco-fecha-hint">Serie histórica</div>
+  </div>
+  <div class="eco-field">
+    <div class="eco-lab">Explorar ciudad</div>
+    <select id="eco-ciudad" class="eco-select">
+      <option value="">Red completa</option>
+    </select>
+  </div>
+  <div class="eco-field">
+    <div class="eco-lab">Capas del territorio</div>
+    <div class="eco-check-grid">
+      <label class="eco-check"><input type="checkbox" id="eco-paises" checked> Países</label>
+      <label class="eco-check"><input type="checkbox" id="eco-cuencas" checked> Cuencas</label>
+      <label class="eco-check"><input type="checkbox" id="eco-urbanas" checked> Áreas urbanas</label>
+      <label class="eco-check"><input type="checkbox" id="eco-idw"> IDW PM2.5</label>
+    </div>
+  </div>
+  <div class="eco-field">
+    <div class="eco-lab">Opacidad polígonos <span id="eco-op-val" class="eco-val">35%</span></div>
+    <input type="range" id="eco-op" min="0" max="100" step="5" value="35">
+  </div>
+  <div class="eco-field">
+    <div class="eco-lab">Mapa base</div>
+    <select id="eco-base" class="eco-select">
+      <option value="claro">Claro</option>
+      <option value="satelite">Satélite</option>
+      <option value="calles">Calles</option>
+      <option value="oscuro">Oscuro</option>
+    </select>
+  </div>
+  <div class="eco-stats" id="eco-stats"></div>
+  <div class="eco-source">Open-Meteo · GloFAS · Natural Earth · HydroBASINS</div>
+</div>
+"""
+
+leyenda_html = f"""
+<details open>
+  <summary>Leyenda</summary>
+  <div class="eco-lg-body">
+    <div class="eco-lg-t">PM2.5 · categoría AQI</div>
+    {items_oms}
+    <div class="eco-lg-t">Temperatura</div>
+    <div class="eco-grad"></div>
+    <div class="eco-grad-lab"><span>0 °C</span><span>35 °C</span></div>
+    <div class="eco-lg-t">Agua</div>
+    <div class="eco-lg-note">Tamaño del círculo = caudal (escala log)</div>
+    <div class="eco-lg-t">Polígonos</div>
+    <div><span class='dot' style='color:#0b3d2e'>■</span> Países</div>
+    <div><span class='dot' style='color:#1d6fa5'>■</span> Cuencas</div>
+    <div><span class='dot' style='color:#7b6d8d'>■</span> Áreas urbanas</div>
+  </div>
+</details>
+"""
+
+
+class EcoVisor(MacroElement):
+    _template = Template(
+        """
+        {% macro header(this, kwargs) %}
+        <style>
+        .eco-panel{background:#fff;border:1px solid #e6e8e6;border-radius:16px;
+          box-shadow:0 12px 34px rgba(11,61,46,.20);width:292px;
+          max-height:calc(100vh - 90px);overflow:auto;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+          color:#1f2937;font-size:13px;line-height:1.45}
+        .eco-panel *{box-sizing:border-box}
+        .eco-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;
+          padding:12px 14px 9px;border-bottom:1px solid #eef1ef;position:sticky;top:0;
+          background:#fff;z-index:2;border-radius:16px 16px 0 0}
+        .eco-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#52796f}
+        .eco-title{font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:700;color:#0b3d2e;line-height:1.15}
+        .eco-min{border:0;background:#eef3f1;color:#0b3d2e;width:28px;height:28px;border-radius:8px;
+          font-size:18px;line-height:1;cursor:pointer}
+        .eco-panel.collapsed .eco-body{display:none}
+        .eco-body{padding:10px 14px 12px}
+        .eco-field{margin-bottom:10px}
+        .eco-lab{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+          color:#6b7280;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+        .eco-val{font-size:11px;font-weight:700;color:#0b3d2e;text-transform:none;letter-spacing:0}
+        .eco-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#f1f4f2;
+          padding:3px;border-radius:10px}
+        .eco-seg button{border:0;background:transparent;border-radius:7px;padding:6px 4px;
+          font-size:11.5px;font-weight:700;color:#4b5563;cursor:pointer;font-family:inherit}
+        .eco-seg button.on{background:#0b3d2e;color:#fff;box-shadow:0 2px 8px rgba(11,61,46,.25)}
+        .eco-fecha{display:flex;align-items:center;gap:8px}
+        .eco-play{width:32px;height:32px;border-radius:9px;border:1px solid #d1d5db;background:#fff;
+          color:#0b3d2e;font-size:12px;cursor:pointer;flex:0 0 auto}
+        .eco-fecha input[type=range],.eco-field input[type=range]{width:100%;accent-color:#0b3d2e;cursor:pointer}
+        .eco-hint{font-size:10.5px;color:#8a938f;margin-top:3px}
+        .eco-check{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;
+          color:#374151;cursor:pointer}
+        .eco-check input{accent-color:#0b3d2e;width:14px;height:14px;margin:0}
+        .eco-check input:disabled+span{opacity:.45}
+        .eco-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}
+        .eco-select{width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:9px;
+          font-family:inherit;font-size:12.5px;background:#fff;color:#1f2937}
+        .eco-stats{display:grid;grid-template-columns:1fr;gap:2px;background:#f4f8f6;
+          border:1px solid #e3ece7;border-radius:11px;padding:8px 10px;margin-top:4px;
+          font-size:12px;color:#374151}
+        .eco-stats b{color:#0b3d2e}
+        .eco-source{font-size:10px;color:#9aa39f;margin-top:8px;line-height:1.3}
+        .eco-legend-box{background:#fff;border:1px solid #e6e8e6;border-radius:12px;
+          box-shadow:0 6px 20px rgba(11,61,46,.14);font-family:Inter,system-ui,sans-serif;
+          font-size:12px;color:#374151;max-width:225px}
+        .eco-legend-box details{margin:0}
+        .eco-legend-box summary{cursor:pointer;padding:9px 12px;font-weight:800;color:#0b3d2e;
+          list-style:none;font-size:12px}
+        .eco-legend-box summary::-webkit-details-marker{display:none}
+        .eco-legend-box summary::after{content:" ▾";color:#52796f}
+        .eco-legend-box details:not([open]) summary::after{content:" ▸"}
+        .eco-lg-body{padding:0 12px 11px}
+        .eco-lg-t{font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+          color:#6b7280;margin:9px 0 4px}
+        .eco-lg-note{font-size:11px;color:#6b7280}
+        .eco-legend-box .dot{margin-right:5px;font-size:12px}
+        .eco-grad{height:9px;border-radius:5px;margin:5px 0 2px;
+          background:linear-gradient(90deg,#2166ac,#67a9cf,#fee08b,#f46d43,#b2182b)}
+        .eco-grad-lab{display:flex;justify-content:space-between;font-size:10px;color:#8a938f}
+        .eco-pop{font-family:Inter,system-ui,sans-serif;font-size:12.5px;color:#1f2937;min-width:190px}
+        .eco-pop-h{font-weight:800;color:#0b3d2e;border-bottom:1px solid #e6e8e6;
+          padding-bottom:5px;margin-bottom:6px;font-size:14px}
+        .eco-pop-h span{font-weight:500;color:#6b7280;font-size:11px;margin-left:5px}
+        .eco-pop table{width:100%;border-collapse:collapse}
+        .eco-pop td{padding:2px 0;vertical-align:top}
+        .eco-pop td:last-child{text-align:right}
+        .eco-pop-f{color:#9aa39f;font-size:10.5px;margin-top:6px;border-top:1px solid #eef1ef;padding-top:5px}
+        @media (max-width:640px){
+          .eco-panel{width:min(86vw,292px);max-height:calc(100vh - 70px)}
+          .eco-legend-box{display:none}
+        }
+        </style>
+        {% endmacro %}
+        {% macro script(this, kwargs) %}
+        (function(){
+          var mapObj = {{this._parent.get_name()}};
+          var D = {{this.datos|tojson}};
+          var C = {{this.capas|tojson}};
+          var PANEL = {{this.panel_html|tojson}};
+          var LEYENDA = {{this.leyenda_html|tojson}};
+
+          var ESRI_LIGHT = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+          var ESRI_LIGHT_REF = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
+          var ESRI_DARK = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+          var ESRI_DARK_REF = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
+          function esri(url, maxNative){
+            return L.tileLayer(url, {attribution:'Tiles &copy; Esri', maxNativeZoom:maxNative, maxZoom:19});
+          }
+          var BASES = {
+            claro: L.layerGroup([esri(ESRI_LIGHT,16), esri(ESRI_LIGHT_REF,16)]),
+            satelite: esri('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',19),
+            calles: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'&copy; OpenStreetMap contributors', maxZoom:19}),
+            oscuro: L.layerGroup([esri(ESRI_DARK,16), esri(ESRI_DARK_REF,16)])
+          };
+          var baseActual = null;
+          function setBase(k){
+            if (baseActual) { mapObj.removeLayer(baseActual); }
+            baseActual = BASES[k] || BASES.claro;
+            baseActual.addTo(mapObj);
+          }
+          setBase('claro');
+
+          function capa(k){ var n = C[k]; return n ? window[n] : null; }
+          var POLY = {paises: capa('paises'), cuencas: capa('cuencas'), urbanas: capa('urbanas')};
+          var PESO = {paises: 0.35, cuencas: 0.55, urbanas: 0.85};
+          var vis = {paises: true, cuencas: true, urbanas: true};
+          var opacidad = 0.35;
+
+          function zoomFactor(k){
+            var z = mapObj.getZoom();
+            if (k === 'cuencas') { return z >= 8 ? 0.35 : 1.0; }
+            if (k === 'urbanas') { return z >= 8 ? 1.0 : 0.55; }
+            return 1.0;
+          }
+
+          function pintaPoly(){
+            ['paises','cuencas','urbanas'].forEach(function(k){
+              var g = POLY[k];
+              if (!g) { return; }
+              if (!vis[k]) { if (mapObj.hasLayer(g)) { mapObj.removeLayer(g); } return; }
+              if (!mapObj.hasLayer(g)) { g.addTo(mapObj); }
+              if (g.setStyle) { g.setStyle({fillOpacity: opacidad * PESO[k] * zoomFactor(k), opacity: 0.95}); }
+              if (g.bringToBack) { g.bringToBack(); }
+            });
+          }
+          mapObj.on('zoomend', pintaPoly);
+
+          var idw = null;
+          if (C.idw_url) {
+            mapObj.createPane('ecoIdw');
+            mapObj.getPane('ecoIdw').style.zIndex = 350;
+            idw = L.imageOverlay(C.idw_url, [[-56,-120],[33,-30]], {pane:'ecoIdw', opacity:0.62, interactive:false});
+          }
+          var idwOn = false;
+
+          var canvas = L.canvas({padding: 0.5});
+          var markers = null;
+          var dominio = 'aire';
+          var region = 'todos';
+          var fechaIdx = D.fechas.length - 1;
+
+          function isNum(v){ return v !== null && v !== undefined && !isNaN(v); }
+          function fmt(v, d){
+            if (!isNum(v)) { return 's/d'; }
+            var n = Number(v);
+            return n.toFixed(d === undefined ? 1 : d);
+          }
+          function esc(s){
+            return String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, function(c){
+              return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+            });
+          }
+          function median(a){
+            if (!a.length) { return null; }
+            var b = a.slice().sort(function(x,y){ return x-y; });
+            var m = Math.floor(b.length/2);
+            return b.length % 2 ? b[m] : (b[m-1] + b[m]) / 2;
+          }
+          function tempColor(t){
+            var stops = [[0,'#2166ac'],[10,'#67a9cf'],[18,'#fee08b'],[26,'#f46d43'],[35,'#b2182b']];
+            if (t <= stops[0][0]) { return stops[0][1]; }
+            for (var i=1;i<stops.length;i++){
+              if (t <= stops[i][0]) {
+                var a = stops[i-1], b = stops[i];
+                var f = (t - a[0]) / (b[0] - a[0]);
+                var ca = parseInt(a[1].slice(1),16), cb = parseInt(b[1].slice(1),16);
+                var r = Math.round(((ca>>16)&255) + f * (((cb>>16)&255) - ((ca>>16)&255)));
+                var gg = Math.round(((ca>>8)&255) + f * (((cb>>8)&255) - ((ca>>8)&255)));
+                var bl = Math.round((ca&255) + f * ((cb&255) - (ca&255)));
+                return 'rgb(' + r + ',' + gg + ',' + bl + ')';
+              }
+            }
+            return stops[stops.length-1][1];
+          }
+
+          function popupHTML(p, o){
+            var rows = [];
+            if (dominio === 'aire') {
+              rows.push(['PM2.5', fmt(o[2],1) + ' µg/m³']);
+              rows.push(['Categoría', D.oms[o[3]] || 's/d']);
+              rows.push(['AQI US máx.', fmt(o[4],0)]);
+            } else if (dominio === 'clima') {
+              rows.push(['Temp. media', fmt(o[5],1) + ' °C']);
+              rows.push(['Precipitación', fmt(o[6],1) + ' mm']);
+              rows.push(['Viento máx.', fmt(o[7],1) + ' km/h']);
+            } else {
+              rows.push(['Caudal', fmt(o[8],0) + ' m³/s']);
+              rows.push(['Tipo', o[9] ? 'Cuenca' : 'Ciudad']);
+            }
+            var tr = rows.map(function(r){
+              return '<tr><td>' + r[0] + '</td><td><b>' + r[1] + '</b></td></tr>';
+            }).join('');
+            return '<div class="eco-pop"><div class="eco-pop-h">' + esc(p.c) +
+              '<span>' + esc(p.p) + '</span></div><table>' + tr + '</table>' +
+              '<div class="eco-pop-f">' + D.fechas[fechaIdx] + '</div></div>';
+          }
+
+          var panel = L.control({position: 'topright'});
+          panel.onAdd = function(){
+            var div = L.DomUtil.create('div', 'eco-panel leaflet-control');
+            div.innerHTML = PANEL;
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+            return div;
+          };
+          panel.addTo(mapObj);
+          var panelEl = panel.getContainer();
+
+          var legend = L.control({position: 'bottomleft'});
+          legend.onAdd = function(){
+            var div = L.DomUtil.create('div', 'eco-legend-box leaflet-control');
+            div.innerHTML = LEYENDA;
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+            return div;
+          };
+          legend.addTo(mapObj);
+
+          function q(sel){ return panelEl.querySelector(sel); }
+          function qa(sel){ return Array.prototype.slice.call(panelEl.querySelectorAll(sel)); }
+
+          if (window.innerWidth < 640) {
+            panelEl.classList.add('collapsed');
+            q('#eco-collapse').textContent = '+';
+            region = 'LatAm';
+            qa('#eco-region button').forEach(function(x){
+              x.classList.toggle('on', x.getAttribute('data-v') === 'LatAm');
+            });
+          }
+
+          function updateFecha(){
+            q('#eco-fecha-val').textContent = D.fechas[fechaIdx];
+            q('#eco-fecha').value = fechaIdx;
+          }
+
+          function statsHTML(vals, prs){
+            var n = vals.length;
+            if (!n) { return '<div>Sin datos para este filtro.</div>'; }
+            if (dominio === 'aire') {
+              var mx = Math.max.apply(null, vals);
+              return '<div><b>' + n + '</b> puntos con dato</div>' +
+                     '<div>Mediana <b>' + fmt(median(vals),1) + '</b> µg/m³</div>' +
+                     '<div>Máximo <b>' + fmt(mx,1) + '</b> µg/m³</div>';
+            }
+            if (dominio === 'clima') {
+              var avg = vals.reduce(function(a,b){ return a+b; }, 0) / n;
+              var tot = prs.reduce(function(a,b){ return a+b; }, 0);
+              return '<div><b>' + n + '</b> puntos con dato</div>' +
+                     '<div>Temp. media <b>' + fmt(avg,1) + '</b> °C</div>' +
+                     '<div>Lluvia total <b>' + fmt(tot,1) + '</b> mm</div>';
+            }
+            var qmx = Math.max.apply(null, vals);
+            return '<div><b>' + n + '</b> puntos con caudal</div>' +
+                   '<div>Mediana <b>' + fmt(median(vals),0) + '</b> m³/s</div>' +
+                   '<div>Máximo <b>' + fmt(qmx,0) + '</b> m³/s</div>';
+          }
+
+          function syncIdw(){
+            if (!idw) { return; }
+            var show = idwOn && dominio === 'aire' && fechaIdx === D.fechas.length - 1;
+            if (show && !mapObj.hasLayer(idw)) { idw.addTo(mapObj); }
+            if (!show && mapObj.hasLayer(idw)) { mapObj.removeLayer(idw); }
+          }
+
+          function fitRegion(){
+            var b = L.latLngBounds([]);
+            D.puntos.forEach(function(p){
+              if (region === 'todos' || p.r === region) { b.extend([p.la, p.lo]); }
+            });
+            if (b.isValid()) {
+              mapObj.fitBounds(b.pad(0.10), {maxZoom: region === 'todos' ? 2 : 4});
+            }
+          }
+
+          function render(){
+            if (markers) { mapObj.removeLayer(markers); }
+            var arr = [], vals = [], prs = [];
+            D.obs.forEach(function(o){
+              if (o[1] !== fechaIdx) { return; }
+              var p = D.puntos[o[0]];
+              if (!p) { return; }
+              if (region !== 'todos' && p.r !== region) { return; }
+              var v, color, rad;
+              if (dominio === 'aire') {
+                v = o[2];
+                if (!isNum(v)) { return; }
+                color = D.colores[o[3]] || '#6c757d';
+                rad = 4 + Math.min(v, 150) / 18;
+              } else if (dominio === 'clima') {
+                v = o[5];
+                if (!isNum(v)) { return; }
+                color = tempColor(v);
+                rad = 4 + Math.min(o[6] || 0, 60) / 10;
+                prs.push(o[6] || 0);
+              } else {
+                v = o[8];
+                if (!isNum(v)) { return; }
+                color = '#01497c';
+                rad = 3 + 2.2 * Math.log10(1 + v);
+              }
+              var mk = L.circleMarker([p.la, p.lo], {
+                radius: rad, color: color, weight: 1.2, fillColor: color,
+                fillOpacity: 0.86, renderer: canvas
+              });
+              mk.bindTooltip(esc(p.c) + ' · ' + fmt(v, dominio === 'agua' ? 0 : 1), {direction:'top', sticky:true});
+              mk.bindPopup(popupHTML(p, o), {maxWidth: 300});
+              arr.push(mk);
+              vals.push(v);
+            });
+            markers = L.layerGroup(arr).addTo(mapObj);
+            q('#eco-stats').innerHTML = statsHTML(vals, prs);
+            q('#eco-idw').disabled = !idw || !(dominio === 'aire' && fechaIdx === D.fechas.length - 1);
+            syncIdw();
+          }
+
+          qa('#eco-dominio button').forEach(function(b){
+            b.addEventListener('click', function(){
+              qa('#eco-dominio button').forEach(function(x){ x.classList.remove('on'); });
+              b.classList.add('on');
+              dominio = b.getAttribute('data-v');
+              render();
+            });
+          });
+          qa('#eco-region button').forEach(function(b){
+            b.addEventListener('click', function(){
+              qa('#eco-region button').forEach(function(x){ x.classList.remove('on'); });
+              b.classList.add('on');
+              region = b.getAttribute('data-v');
+              citySel.value = '';
+              render();
+              fitRegion();
+            });
+          });
+
+          var range = q('#eco-fecha');
+          range.max = D.fechas.length - 1;
+          range.addEventListener('input', function(){
+            fechaIdx = parseInt(range.value, 10);
+            updateFecha();
+            render();
+          });
+
+          var timer = null;
+          var play = q('#eco-play');
+          play.addEventListener('click', function(){
+            if (timer) {
+              clearInterval(timer); timer = null; play.textContent = '▶';
+            } else {
+              play.textContent = '❚❚';
+              timer = setInterval(function(){
+                fechaIdx = (fechaIdx + 1) % D.fechas.length;
+                updateFecha();
+                render();
+              }, 1300);
+            }
+          });
+
+          ['paises','cuencas','urbanas'].forEach(function(k){
+            var box = q('#eco-' + k);
+            box.checked = vis[k];
+            box.addEventListener('change', function(){ vis[k] = box.checked; pintaPoly(); });
+          });
+          var idwBox = q('#eco-idw');
+          idwBox.addEventListener('change', function(){ idwOn = idwBox.checked; syncIdw(); });
+
+          var op = q('#eco-op');
+          op.value = Math.round(opacidad * 100);
+          q('#eco-op-val').textContent = op.value + '%';
+          op.addEventListener('input', function(){
+            opacidad = parseInt(op.value, 10) / 100;
+            q('#eco-op-val').textContent = op.value + '%';
+            pintaPoly();
+          });
+
+          var baseSel = q('#eco-base');
+          baseSel.addEventListener('change', function(){ setBase(baseSel.value); });
+
+          var citySel = q('#eco-ciudad');
+          D.puntos.map(function(p, i){ return {p: p, i: i}; })
+            .sort(function(a, b){ return a.p.c.localeCompare(b.p.c, 'es'); })
+            .forEach(function(item){
+              var opt = document.createElement('option');
+              opt.value = item.i;
+              opt.textContent = item.p.c + ' · ' + item.p.p;
+              citySel.appendChild(opt);
+            });
+          citySel.addEventListener('change', function(){
+            if (citySel.value === '') { fitRegion(); return; }
+            var p = D.puntos[parseInt(citySel.value, 10)];
+            if (p) { mapObj.flyTo([p.la, p.lo], 10, {duration: 1.1}); }
+          });
+
+          q('#eco-collapse').addEventListener('click', function(){
+            panelEl.classList.toggle('collapsed');
+            q('#eco-collapse').textContent = panelEl.classList.contains('collapsed') ? '+' : '−';
+          });
+
+          updateFecha();
+          q('#eco-fecha-hint').textContent = D.fechas.length + ' fechas disponibles';
+          pintaPoly();
+          render();
+          fitRegion();
+        })();
+        {% endmacro %}
+        """
+    )
+
+    def __init__(self, datos, capas, panel_html, leyenda_html):
+        super().__init__()
+        self._name = "EcoVisor"
+        self.datos = datos
+        self.capas = capas
+        self.panel_html = panel_html
+        self.leyenda_html = leyenda_html
+
+
+EcoVisor(datos, capas, panel_html, leyenda_html).add_to(m)
+
+Fullscreen(position="topleft", title="Pantalla completa",
+           title_cancel="Salir de pantalla completa", force_separate_button=True).add_to(m)
+
+m
+```
+:::
+
+</div>
 
 <div class="main-container">
-
-```{python}
-#| label: datos-base
-#| output: false
-from pathlib import Path
-import numpy as np
-import pandas as pd
-
-dirs = sorted(Path("../lake/serving/indicador_diario").glob("fecha=*/"))
-frames = []
-for d in dirs:
-    try:
-        part = pd.read_parquet(d)
-        part["fecha"] = d.name.replace("fecha=", "")
-        frames.append(part)
-    except Exception:
-        pass
-df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-ult = df["fecha"].max() if not df.empty else "s/d"
-base = df[df["fecha"] == ult].copy() if not df.empty else df
-latam = base[base["region"] == "LatAm"].copy() if not base.empty else base
-
-def f1(x, dec=1):
-    return "s/d" if x is None or (isinstance(x, float) and pd.isna(x)) else f"{x:.{dec}f}"
-
-def entero(x):
-    return "s/d" if x is None or (isinstance(x, float) and pd.isna(x)) else f"{x:,.0f}"
-```
 
 ```{python}
 #| label: estilo
@@ -58,396 +665,115 @@ pio.templates["eco"] = dict(layout=dict(
     title=dict(font=dict(family="Fraunces, serif", size=15), x=0.02, xanchor="left", automargin=True),
     margin=dict(l=50, r=20, t=75, b=40),
     paper_bgcolor="white", plot_bgcolor="white",
-    xaxis=dict(gridcolor="#edf0f0", automargin=True), yaxis=dict(gridcolor="#edf0f0", automargin=True)))
+    xaxis=dict(gridcolor="#edf0f0", automargin=True),
+    yaxis=dict(gridcolor="#edf0f0", automargin=True),
+))
 pio.templates.default = "plotly_white+eco"
 ```
 
+## 01 · Lectura de la red
 
-<div class="map-full">
-  <div class="map-controls-top">
-    <div class="control-group fecha">
-      <label class="control-label">Fecha</label>
-      <select class="control-select" id="filtro-fecha"></select>
-    </div>
-    <div class="control-group region">
-      <label class="control-label">Región</label>
-      <select class="control-select" id="filtro-region">
-        <option value="todos">Todas las regiones</option>
-        <option value="LatAm">Latinoamérica</option>
-        <option value="Mundo">Resto del mundo</option>
-      </select>
-    </div>
-    <div class="control-group dominio">
-      <label class="control-label">Dominio</label>
-      <select class="control-select" id="filtro-dominio">
-        <option value="todos">Todos los dominios</option>
-        <option value="aire">Aire · PM2.5</option>
-        <option value="clima">Clima · Temperatura</option>
-        <option value="agua">Agua · Caudal</option>
-      </select>
-    </div>
-    <div class="control-group opacidad">
-      <label class="control-label">Opacidad polígonos</label>
-      <input type="range" class="control-range" id="filtro-opacidad-poly" min="0" max="1" step="0.1" value="1">
-    </div>
-  </div>
-
-::: {.map-wrap-full}
 ```{python}
-#| label: visor-maestro
-#| fig-cap: "Visor maestro multicapa a pantalla completa: PM2.5, temperatura, caudal, IDW y poligonos geoespaciales"
-import math
-import folium
-from folium.plugins import MarkerCluster, Fullscreen, HeatMap, MiniMap
-from branca.element import MacroElement
-from folium.template import Template
-import branca.colormap as cm
+#| label: lectura-red
+#| output: asis
+if not base.empty:
+    n_puntos = len(base)
+    n_latam = int((base["region"] == "LatAm").sum())
+    n_paises = int(base["pais"].nunique())
+    n_fechas = len(fechas)
+else:
+    n_puntos = n_latam = n_paises = n_fechas = 0
 
-import sys
-sys.path.insert(0, str(Path(".").resolve()))
-from src.geo.map_components import capas_poligonos, html_leyenda_poligonos
-
-ESRI_CALLES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-ESRI_SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-OMS = {"Buena": "#2d6a4f", "Moderada": "#ee9b00", "Dañina (sensible)": "#ca6702",
-       "Dañina": "#bb3e03", "Muy dañina": "#9d0208", "Peligrosa": "#6a040f"}
-
-
-class EcoLegend(MacroElement):
-    """Leyenda como control Leaflet (bottomleft): viaja con el mapa en
-    fullscreen y no intercepta el botón."""
-    _template = Template("""
-        {% macro header(this, kwargs) %}
-        <style>
-        .eco-legend{background:#fff;padding:0;border-radius:12px;font-size:12px;
-          line-height:1.45;color:#212529;box-shadow:0 4px 16px rgba(0,0,0,.15);max-width:250px}
-        .eco-legend details{margin:0}
-        .eco-legend summary{cursor:pointer;padding:12px 16px;font-weight:700;list-style:none;
-          border-bottom:1px solid #f1f3f5;font-size:0.9rem}
-        .eco-legend summary::-webkit-details-marker{display:none}
-        .eco-legend summary::after{content:" ▾";color:#52796f}
-        .eco-legend details:not([open]) summary::after{content:" ▸"}
-        .eco-legend .eco-body{padding:0 16px 14px}
-        .eco-legend .eco-hint{margin-top:10px;padding-top:10px;border-top:1px solid #e6e8e6;
-          font-size:11px;color:#6c757d}
-        .eco-legend .dot{font-size:13px;margin-right:8px}
-        .eco-legend .legend-item{display:flex;align-items:center;gap:8px;padding:5px 0;
-          font-size:0.88rem}
-        .eco-legend .legend-group-title{font-size:0.75rem;font-weight:700;text-transform:uppercase;
-          letter-spacing:0.08em;color:#6b7280;margin:10px 0 6px;padding:0 4px;}
-        </style>
-        {% endmacro %}
-        {% macro script(this, kwargs) %}
-        (function(){
-          var mapObj = {{this._parent.get_name()}};
-          var leg = L.control({position: 'bottomleft'});
-          leg.onAdd = function(map){
-            var div = L.DomUtil.create('div', 'eco-legend leaflet-control');
-            div.innerHTML = {{this.html_legend|tojson}};
-            L.DomEvent.disableClickPropagation(div);
-            L.DomEvent.disableScrollPropagation(div);
-            return div;
-          };
-          leg.addTo(mapObj);
-          mapObj.scrollWheelZoom.disable();
-          if (window.innerWidth < 640 && mapObj.dragging) {
-            mapObj.dragging.disable();
-            mapObj.once('click', function(){ mapObj.dragging.enable(); });
-          }
-        })();
-        {% endmacro %}
-    """)
-
-    def __init__(self, html_legend):
-        super().__init__()
-        self._name = "EcoLegend"
-        self.html_legend = html_legend
-
-
-def popup(dominio, p, filas):
-    """Popup con borde de color por dominio y tipografía Inter."""
-    color = {"aire": "#ee9b00", "clima": "#219ebc", "agua": "#01497c"}.get(dominio, "#6c757d")
-    rows = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in filas)
-    html = (
-        f"<div class='eco-popup' style='border-left:4px solid {color}; "
-        f"font-family:Inter,sans-serif; font-size:13px;'>"
-        f"<div style='font-weight:700; color:{color}; margin-bottom:6px; border-bottom:1px solid #e6e8e6; padding-bottom:4px;'>"
-        f"<b>{p['ciudad']}</b> <span style='font-weight:400; font-size:0.85rem; opacity:0.8;'>({p['pais']})</span></div>"
-        f"<table style='width:100%; border-collapse:collapse;'>{rows}</table></div>"
-    )
-    return folium.Popup(html, max_width=320)
-
-
-m = folium.Map(location=[-12, -62], zoom_start=3, tiles=None, control_scale=True,
-               preferCanvas=True, scrollWheelZoom=False)
-folium.TileLayer("OpenStreetMap", name="Calles OSM", show=False).add_to(m)
-folium.TileLayer(tiles=ESRI_CALLES, attr="Esri", name="Esri calles", show=False).add_to(m)
-folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(m)
-
-# ---- Capas de polígonos (FONDO - se dibujan primero, debajo de todo) ----
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
-if g_paises: g_paises.add_to(m)
-if g_cuencas: g_cuencas.add_to(m)
-if g_urbanas: g_urbanas.add_to(m)
-
-overlay_path = Path(f"../lake/serving/superficies/fecha={ult}/pm25.png")
-if overlay_path.exists():
-    g_idw = folium.FeatureGroup(name="Superficie IDW · PM2.5", show=False)
-    folium.raster_layers.ImageOverlay(
-        str(overlay_path), bounds=[[-56, -120], [33, -30]],
-        opacity=0.65, name="IDW PM2.5",
-    ).add_to(g_idw)
-    g_idw.add_to(m)
-
-g_aire = folium.FeatureGroup(name="Aire · PM2.5", show=False)
-mc_a = MarkerCluster().add_to(g_aire)
-for _, p in base.dropna(subset=["pm25_media"]).iterrows():
-    folium.CircleMarker(
-        [p["lat"], p["lon"]], radius=4 + min(float(p["pm25_media"]), 150) / 18,
-        color=OMS.get(p["categoria_pm25_aqi"], "#6c757d"), fill=True, fill_opacity=0.8,
-        tooltip=f"{p['ciudad']}: PM2.5 {p['pm25_media']:.1f} ug/m3 ({p['categoria_pm25_aqi']})",
-        popup=popup("aire", p, [("PM2.5", f"{p['pm25_media']:.1f} µg/m³"),
-                        ("Categoria", p["categoria_pm25_aqi"]), ("AQI US max", f1(p["us_aqi_max"], 0))]),
-    ).add_to(mc_a)
-g_aire.add_to(m)
-
-col_temp = cm.LinearColormap(["#2166ac", "#fee08b", "#b2182b"], vmin=0, vmax=35)
-g_clima = folium.FeatureGroup(name="Clima - Temp/lluvia", show=False)
-mc_c = MarkerCluster().add_to(g_clima)
-for _, p in base.dropna(subset=["temp_media_c"]).iterrows():
-    ll = 0 if pd.isna(p["precipitacion_mm"]) else float(p["precipitacion_mm"])
-    folium.CircleMarker(
-        [p["lat"], p["lon"]], radius=4 + min(ll, 60) / 8,
-        color=col_temp(float(p["temp_media_c"])), fill=True, fill_opacity=0.8,
-        tooltip=f"{p['ciudad']}: {p['temp_media_c']:.1f} C · {ll:.1f} mm",
-        popup=popup("clima", p, [("Temp. media", f"{p['temp_media_c']:.1f} C"),
-                        ("Precipitacion", f"{ll:.1f} mm"), ("Viento max", f"{f1(p['viento_max_kmh'])} km/h")]),
-    ).add_to(mc_c)
-g_clima.add_to(m)
-
-g_agua = folium.FeatureGroup(name="Agua - Caudal (log)", show=False)
-mc_h = MarkerCluster().add_to(g_agua)
-for _, p in base.dropna(subset=["caudal_m3s"]).iterrows():
-    qq = float(p["caudal_m3s"])
-    folium.CircleMarker(
-        [p["lat"], p["lon"]], radius=3 + 4 * math.log10(1 + qq),
-        color="#01497c", fill=True, fill_opacity=0.75,
-        tooltip=f"{p['ciudad']}: {qq:,.0f} m3/s",
-        popup=popup("agua", p, [("Caudal", f"{qq:,.0f} m³/s"), ("Tipo", "Cuenca" if p.get("es_cuenca") else "Ciudad")]),
-    ).add_to(mc_h)
-g_agua.add_to(m)
-
-hg = folium.FeatureGroup(name="Calor · PM2.5 (heatmap)", show=False)
-HeatMap(
-    [[p["lat"], p["lon"], float(p["pm25_media"])] for _, p in base.dropna(subset=["pm25_media"]).iterrows()],
-    radius=18, blur=12, max_zoom=6, min_opacity=0.35,
-).add_to(hg)
-hg.add_to(m)
-
-items_oms = "".join(f"<div><span class='dot' style='color:{c}'>●</span> {k}</div>" for k, c in OMS.items())
-items_poly = html_leyenda_poligonos()
-EcoLegend(f"<details open><summary>Leyenda del mapa</summary><div class='eco-body'>"
-          f"<div class='legend-group-title'>PM2.5 (AQI EE. UU.)</div>{items_oms}"
-          f"<hr style='border:none;border-top:1px solid #e6e8e6;margin:8px 0;'>"
-          f"<div class='legend-group-title'>Capas geoespaciales</div>{items_poly}"
-          f"<div class='eco-hint'>Polígonos activos por defecto · usa el LayerControl arriba a la derecha para alternar</div>"
-          f"</div></details>").add_to(m)
-MiniMap(toggle_display=True, position="bottomright", width=110, height=110).add_to(m)
-Fullscreen(position="topright", title="Pantalla completa",
-           title_cancel="Salir de pantalla completa", force_separate_button=True).add_to(m)
-
-# ---- Control de opacidad por capa ----
-class OpacityControl(MacroElement):
-    _template = Template("""
-        {% macro header(this, kwargs) %}
-        <style>
-        .eco-opacity{background:#fff;border-radius:12px;padding:14px;
-          box-shadow:0 4px 16px rgba(0,0,0,.15);max-width:240px;font-size:12px;
-          font-family:Inter,sans-serif;border:1px solid #e6e8e6;}
-        .eco-opacity .eco-title{font-weight:700;color:#0b3d2e;margin-bottom:10px;
-          font-size:0.85rem;display:block;text-transform:uppercase;letter-spacing:0.05em;}
-        .eco-opacity .eco-item{margin-bottom:12px;}
-        .eco-opacity .eco-item:last-child{margin-bottom:0;}
-        .eco-opacity label{display:block;margin-bottom:4px;font-weight:600;
-          color:#374151;font-size:0.78rem;}
-        .eco-opacity input[type=range]{width:100%;cursor:pointer;accent-color:#0b3d2e;}
-        .eco-opacity .eco-val{float:right;font-size:0.75rem;color:#6b7280;}
-        </style>
-        {% endmacro %}
-        {% macro script(this, kwargs) %}
-        (function(){
-          var mapObj = {{this._parent.get_name()}};
-          var div = L.DomUtil.create('div', 'eco-opacity leaflet-control');
-          div.innerHTML = {{this.html|tojson}};
-          L.DomEvent.disableClickPropagation(div);
-          L.DomEvent.disableScrollPropagation(div);
-
-          var layers = {};
-          mapObj.eachLayer(function(layer){
-            if (layer.options && layer.options.name) {
-              layers[layer.options.name] = layer;
-            }
-          });
-
-          function setOpacity(name, val){
-            var layer = layers[name];
-            if (!layer) return;
-            if (layer.setOpacity) layer.setOpacity(val);
-            else if (layer.getLayers) {
-              layer.getLayers().forEach(function(l){ if(l.setOpacity) l.setOpacity(val); });
-            }
-          }
-
-          div.querySelectorAll('input[type=range]').forEach(function(input){
-            input.addEventListener('input', function(e){
-              setOpacity(input.dataset.layer, e.target.value);
-              input.nextElementSibling.textContent = e.target.value;
-            });
-          });
-
-          return div;
-        })();
-        {% endmacro %}
-    """)
-
-    def __init__(self, html):
-        super().__init__()
-        self._name = "OpacityControl"
-        self.html = html
-
-opacity_html = """<div class='eco-opacity'>
-<span class='eco-title'>Opacidad de capas</span>
-<div class='eco-item'><label>Aire · PM2.5</label>
-<input type='range' min='0' max='1' step='0.1' value='1' data-layer='Aire · PM2.5'>
-<span class='eco-val'>1</span></div>
-<div class='eco-item'><label>Clima · Temp/lluvia</label>
-<input type='range' min='0' max='1' step='0.1' value='1' data-layer='Clima · Temp/lluvia'>
-<span class='eco-val'>1</span></div>
-<div class='eco-item'><label>Agua · Caudal</label>
-<input type='range' min='0' max='1' step='0.1' value='1' data-layer='Agua · Caudal (log)'>
-<span class='eco-val'>1</span></div>
-<div class='eco-item'><label>Superficie IDW · PM2.5</label>
-<input type='range' min='0' max='1' step='0.1' value='0.65' data-layer='IDW PM2.5'>
-<span class='eco-val'>0.65</span></div>
-<div class='eco-item'><label>Países (contexto)</label>
-<input type='range' min='0' max='1' step='0.1' value='1' data-layer='Países'>
-<span class='eco-val'>1</span></div>
-<div class='eco-item'><label>Áreas urbanas</label>
-<input type='range' min='0' max='1' step='0.1' value='1' data-layer='Área urbana'>
-<span class='eco-val'>1</span></div>
-<div class='eco-item'><label>Cuencas hidrográficas</label>
-<input type='range' min='0' max='1' step='0.1' value='1' data-layer='Cuenca'>
-<span class='eco-val'>1</span></div>
-</div>"""
-OpacityControl(opacity_html).add_to(m)
-
-folium.LayerControl(collapsed=True).add_to(m)
-m
+cards = [
+    (f"{n_puntos}", "puntos de monitoreo"),
+    (f"{n_latam}", "en LatAm y Caribe"),
+    (f"{n_paises}", "países representados"),
+    (f"{n_fechas}", "fechas en el lake"),
+]
+html = "".join(
+    f'<div class="kpi kpi-gris"><div class="kpi-valor">{v}</div>'
+    f'<div class="kpi-etiqueta">{e}</div></div>'
+    for v, e in cards
+)
+print(f'<div class="kpi-row">{html}</div>')
+print(f'<p class="visor-nota">Última fecha servida: <b>{ult}</b>. '
+      f'El visor permite explorar los tres dominios, filtrar por región, animar la serie '
+      f'y acercar el mapa a cualquiera de las {n_puntos} estaciones para ver sus polígonos '
+      f'de área urbana y cuenca.</p>')
 ```
-:::
+
+## 02 · Pulso diario de la red
+
+```{python}
+#| label: pulso-diario
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+if not hist.empty:
+    h = hist.copy()
+    h["fecha_dt"] = pd.to_datetime(h["fecha"])
+
+    pm = h.dropna(subset=["pm25_media"]).groupby(["fecha_dt", "region"])["pm25_media"].median().reset_index()
+    tp = h.dropna(subset=["temp_media_c"]).groupby(["fecha_dt", "region"])["temp_media_c"].median().reset_index()
+    ca = h.dropna(subset=["caudal_m3s"]).groupby(["fecha_dt", "region"])["caudal_m3s"].median().reset_index()
+
+    colores = {"LatAm": "#0b3d2e", "Mundo": "#ee9b00"}
+    fig = make_subplots(rows=1, cols=3,
+                        subplot_titles=("PM2.5 mediana (µg/m³)", "Temperatura media (°C)", "Caudal mediano (m³/s)"))
+    for reg, color in colores.items():
+        d = pm[pm["region"] == reg]
+        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["pm25_media"], mode="lines+markers",
+                                 name=reg, legendgroup=reg, line=dict(color=color, width=2),
+                                 marker=dict(size=4)), row=1, col=1)
+        d = tp[tp["region"] == reg]
+        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["temp_media_c"], mode="lines+markers",
+                                 name=reg, legendgroup=reg, showlegend=False,
+                                 line=dict(color=color, width=2), marker=dict(size=4)), row=1, col=2)
+        d = ca[ca["region"] == reg]
+        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["caudal_m3s"], mode="lines+markers",
+                                 name=reg, legendgroup=reg, showlegend=False,
+                                 line=dict(color=color, width=2), marker=dict(size=4)), row=1, col=3)
+    fig.update_layout(height=360, margin=dict(l=40, r=20, t=55, b=40),
+                      legend=dict(orientation="h", y=-0.18, x=0))
+    fig.update_yaxes(type="log", row=1, col=3)
+    fig.show(config={"responsive": True, "displaylogo": False})
+```
+
+## 03 · Cruces que explican la contaminación
+
+<div class="analisis-dedicado">
+
+¿El calor y la lluvia mueven la contaminación? Dos cruces con la guía OMS como referencia.
+
 </div>
-
-## 02 · Analisis cruzado — Hallazgos de los datos
-
-<section class="analisis-dedicado">
-
-¿El calor y la lluvia mueven la contaminación? Dos cruces rápidos, con la guía OMS como referencia.
 
 ```{python}
 #| label: cruzados-maestro
 import plotly.express as px
 
-cru = base.dropna(subset=["temp_media_c", "pm25_media"])
-fig1 = px.scatter(cru, x="temp_media_c", y="pm25_media", color="region", hover_name="ciudad",
-                  title="Temp. media vs PM2.5",
-                  labels={"temp_media_c": "Temp. media C", "pm25_media": "PM2.5 ug/m3"})
-fig1.add_hline(y=15, line_dash="dash", line_color="#2d6a4f",
-               annotation_text="Guía OMS 24h: 15 ug/m3")
-fig1.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
-fig1.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
+_necesarias = {"temp_media_c", "pm25_media", "precipitacion_mm", "us_aqi_max"}
+if base.empty or not _necesarias.issubset(base.columns):
+    print("<p class='visor-nota'>No hay datos suficientes para los cruces de esta fecha.</p>")
+else:
+    cru = base.dropna(subset=["temp_media_c", "pm25_media"])
+    fig1 = px.scatter(cru, x="temp_media_c", y="pm25_media", color="region", hover_name="ciudad",
+                      title="Temperatura media vs PM2.5",
+                      labels={"temp_media_c": "Temperatura media (°C)", "pm25_media": "PM2.5 (µg/m³)"},
+                      color_discrete_map={"LatAm": "#0b3d2e", "Mundo": "#ee9b00"})
+    fig1.add_hline(y=15, line_dash="dash", line_color="#2d6a4f",
+                   annotation_text="Guía OMS 24h: 15 µg/m³")
+    fig1.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
+    fig1.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
 
-cru2 = base.dropna(subset=["precipitacion_mm", "us_aqi_max"])
-fig2 = px.scatter(cru2, x="precipitacion_mm", y="us_aqi_max", color="region", hover_name="ciudad",
-                  title="Precipitación vs AQI máximo",
-                  labels={"precipitacion_mm": "Precipitacion mm", "us_aqi_max": "AQI US max"})
-fig2.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
-fig2.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
+    cru2 = base.dropna(subset=["precipitacion_mm", "us_aqi_max"])
+    fig2 = px.scatter(cru2, x="precipitacion_mm", y="us_aqi_max", color="region", hover_name="ciudad",
+                      title="Precipitación vs AQI máximo",
+                      labels={"precipitacion_mm": "Precipitación (mm)", "us_aqi_max": "AQI US máximo"},
+                      color_discrete_map={"LatAm": "#0b3d2e", "Mundo": "#ee9b00"})
+    fig2.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
+    fig2.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
 ```
 
-</section>
-
-## 03 · Evolucion diaria (slider temporal)
-
-<section class="analisis-dedicado">
-
-Arrastra el control para animar el PM2.5 de los últimos 14 días.
-
-::: {.map-wrap-slider}
-```{python}
-#| label: slider-temporal-maestro
-#| fig-cap: "PM2.5 animado día a día (últimos 14 días)"
-from folium.plugins import TimestampedGeoJson, MiniMap, Fullscreen
-from branca.element import MacroElement
-from folium.template import Template
-
-
-class EcoMobile(MacroElement):
-    """Comportamiento móvil: no atrapa el scroll de página."""
-    _template = Template("""
-        {% macro script(this, kwargs) %}
-        (function(){
-          var mapObj = {{this._parent.get_name()}};
-          mapObj.scrollWheelZoom.disable();
-          if (window.innerWidth < 640 && mapObj.dragging) {
-            mapObj.dragging.disable();
-            mapObj.once('click', function(){ mapObj.dragging.enable(); });
-          }
-        })();
-        {% endmacro %}
-    """)
-
-    def __init__(self):
-        super().__init__()
-        self._name = "EcoMobile"
-
-
-hist = df.dropna(subset=["pm25_media"]).copy()
-fechas14 = sorted(hist["fecha"].unique())[-14:]
-hh = hist[hist["fecha"].isin(fechas14)]
-
-feats = []
-for _, p in hh.sort_values("fecha").iterrows():
-    c = OMS.get(p["categoria_pm25_aqi"], "#6c757d")
-    feats.append({
-        "type": "Feature",
-        "geometry": {"type": "Point", "coordinates": [float(p["lon"]), float(p["lat"])]},
-        "properties": {
-            "time": f"{p['fecha']}T00:00:00",
-            "popup": f"<b>{p['ciudad']}</b> ({p['fecha']}): {p['pm25_media']:.1f} ug/m3",
-            "icon": "circle",
-            "iconstyle": {"fillColor": c, "fillOpacity": 0.85, "color": c,
-                          "radius": 5 + min(float(p["pm25_media"]), 150) / 15},
-        },
-    })
-
-mt = folium.Map(location=[-12, -62], zoom_start=3, tiles=None, control_scale=True,
-                preferCanvas=True, scrollWheelZoom=False)
-folium.TileLayer("OpenStreetMap", name="Calles OSM").add_to(mt)
-folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(mt)
-TimestampedGeoJson(
-    {"type": "FeatureCollection", "features": feats},
-    period="P1D", transition_time=600, loop=False, auto_play=False,
-    add_last_point=False, date_options="YYYY-MM-DD",
-).add_to(mt)
-EcoMobile().add_to(mt)
-MiniMap(toggle_display=True, position="bottomright", width=100, height=100).add_to(mt)
-Fullscreen(position="topright", title="Pantalla completa",
-           title_cancel="Salir de pantalla completa", force_separate_button=True).add_to(mt)
-folium.LayerControl(collapsed=True).add_to(mt)
-mt
-```
-:::
-
-</section>
+> **Fuentes:** Open-Meteo (meteorología y calidad del aire), GloFAS (caudal), Natural Earth (países y áreas urbanas) e HydroBASINS (cuencas). Los polígonos son contexto geoespacial; la superficie IDW se calcula solo para la fecha más reciente.
 
 </div>

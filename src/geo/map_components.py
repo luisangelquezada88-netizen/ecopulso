@@ -33,21 +33,21 @@ GEO_DIR = next((c for c in _CANDIDATES if c.exists()), _CANDIDATES[0])
 # ---------------------------------------------------------------------------
 ESTILO_PAISES = {
     "color": "#0b3d2e",
-    "weight": 1,
-    "fillOpacity": 0.08,
+    "weight": 0.8,
+    "fillOpacity": 0.10,
     "fillColor": "#0b3d2e",
 }
 ESTILO_URBANAS = {
-    "color": "#52796f",
-    "weight": 1.5,
-    "fillOpacity": 0.22,
-    "fillColor": "#52796f",
+    "color": "#7b6d8d",
+    "weight": 1.0,
+    "fillOpacity": 0.30,
+    "fillColor": "#7b6d8d",
 }
 ESTILO_CUENCAS = {
-    "color": "#01497c",
-    "weight": 2,
-    "fillOpacity": 0.18,
-    "fillColor": "#01497c",
+    "color": "#1d6fa5",
+    "weight": 1.4,
+    "fillOpacity": 0.24,
+    "fillColor": "#1d6fa5",
 }
 
 
@@ -132,10 +132,10 @@ def html_leyenda_poligonos() -> str:
         )
     if (GEO_DIR / "areas_urbanas_coincidentes.geojson").exists():
         items += (
-            "<div><span class='dot' style='color:#52796f'>■</span> Áreas urbanas</div>"
+            "<div><span class='dot' style='color:#7b6d8d'>■</span> Áreas urbanas</div>"
         )
     if (GEO_DIR / "cuencas_coincidentes.geojson").exists():
         items += (
-            "<div><span class='dot' style='color:#01497c'>■</span> Cuencas hidrográficas</div>"
+            "<div><span class='dot' style='color:#1d6fa5'>■</span> Cuencas hidrográficas</div>"
         )
     return items
