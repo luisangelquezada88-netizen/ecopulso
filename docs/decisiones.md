@@ -123,3 +123,41 @@
   no se ejecuta y el sitio queda sin errores de consola (salvo favicon 404).
 - Las páginas temáticas conservan su visor propio y su TOC; solo se hace robusta
   la inserción de `ROOT` para que `quarto render` funcione sin `PYTHONPATH`.
+  *(Actualizado por D-16: Red separada, 52 fechas y temáticas sin visor.)*
+
+## D-16 — Red separada, backfill y polígonos con datos (2026-11-24)
+- Se separa `red.qmd` (navbar Visor | Red | Ambiente | Datos | Acerca). El índice
+  queda solo con el visor full-bleed; KPIs, pulso diario y cruces viven en Red.
+- Las páginas temáticas pierden su visor geográfico; los modelos ML suben
+  inmediatamente después de “01 · Estado de hoy”. El HTML baja de ~1.3 MB a
+  ~0.09 MB por página.
+- Backfill de las 7 fechas faltantes (26-oct y 28-oct→02-nov) con los tres
+  extractores + transform + IDW. La serie queda continua: 52 fechas
+  (2026-10-02 → 2026-11-22), 52 superficies. Sin frames vacíos en el slider.
+- Países: 66 ISO3 con datos desde Natural Earth 10m (GUF se extrae de la parte
+  del MultiPolygon de Francia), simplificados a 0.10°, más contexto mundial
+  110m (136 KB). Total ~1.13 MB.
+- Cuencas: los 17 puntos `es_cuenca=True` caen dentro de HydroBASINS nivel 6
+  (17/17, 17 polígonos únicos). Se regeneran con `punto_id`, `HYBAS_ID`,
+  `SUB_AREA`, `nivel` y `nombre_cuenca` legible. El caudal es el del punto de
+  salida, no un caudal integrado de toda la cuenca.
+- Visor: segmentado Puntos | Ciudades | Países | Cuencas. Los polígonos se
+  rellenan con la paleta del dominio (AQI, temperatura, azul secuencial) y
+  muestran popup al hacer clic. Países agregan mediana/máximo/n/ciudad líder;
+  ciudades y cuencas muestran el punto y, en cuencas, la metadata HydroBASINS.
+- Mapa base por defecto: Oscuro (Esri Dark Gray). La UI/panel sigue clara.
+- IDW por fecha: los PNG de `lake/serving/superficies` se copian a
+  `dashboard/_site/superficies` en el pipeline y el visor los carga bajo demanda
+  con `L.imageOverlay`; el toggle ya no está limitado a la última fecha.
+- `plotly>=5.22,<6` se mantiene por el import ESM roto de Quarto con Plotly 6/7.
+
+## D-17 — Licencia MIT para código y datos aparte (2026-11-24)
+- Proyecto personal de portafolio, sin empleador/cliente ni coautores.
+- Se elige **MIT** para el código por simplicidad, compatibilidad con el stack
+  (Python/Quarto/Plotly/Folium/scikit-learn/PostGIS) y máxima reutilización.
+- Los datos, GeoJSON derivados, superficies IDW y mosaicos **no** se relicencian
+  como MIT: conservan las licencias de Open-Meteo (CC BY 4.0), Copernicus/GloFAS,
+  Natural Earth (dominio público) y HydroSHEDS/HydroBASINS. Ver `NOTICE.md`.
+- Se descarta Apache-2.0 para este sprint: no hay patentes propias que proteger
+  y el proyecto no necesita el aparato de NOTICE/patentes; se puede migrar si
+  aparecen contribuciones corporativas o preocupación por patentes.

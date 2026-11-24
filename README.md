@@ -1,8 +1,22 @@
 # EcoPulso — Observatorio Ambiental y Plataforma de Datos End-to-End
 
+<p align="center">
+  <a href="https://www.linkedin.com/in/luis-angel-quezada-aguirre-291333268/"><img alt="LinkedIn" src="https://img.shields.io/badge/LinkedIn-Luis%20Angel%20Quezada-0A66C2?style=flat-square&amp;logo=linkedin&amp;logoColor=white"></a>
+  <img alt="Python 3.11" src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white">
+  <img alt="CSS 3" src="https://img.shields.io/badge/CSS-3-1572B6?style=flat-square&amp;logo=css3&amp;logoColor=white">
+  <img alt="Quarto" src="https://img.shields.io/badge/Quarto-1.11-75AADB?style=flat-square&amp;logo=quarto&amp;logoColor=white">
+  <img alt="scikit-learn" src="https://img.shields.io/badge/scikit--learn-1.9-F7931E?style=flat-square&amp;logo=scikitlearn&amp;logoColor=white">
+  <img alt="PostGIS" src="https://img.shields.io/badge/PostGIS-3.4-336791?style=flat-square&amp;logo=postgresql&amp;logoColor=white">
+</p>
+
+<p align="center">
+  <a href="https://github.com/luisangelquezada88-netizen/observatorio-ambiental/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/luisangelquezada88-netizen/observatorio-ambiental/ci.yml?branch=main&amp;label=CI&amp;style=flat-square"></a>
+  <a href="https://github.com/luisangelquezada88-netizen/observatorio-ambiental/actions/workflows/pipeline.yml"><img alt="Data Pipeline" src="https://img.shields.io/github/actions/workflow/status/luisangelquezada88-netizen/observatorio-ambiental/pipeline.yml?branch=main&amp;label=Data%20Pipeline&amp;style=flat-square"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square"></a>
+  <a href="https://luisangelquezada88-netizen.github.io/observatorio-ambiental/"><img alt="Demo" src="https://img.shields.io/badge/Demo-GitHub%20Pages-2d6a4f?style=flat-square&amp;logo=github&amp;logoColor=white"></a>
+</p>
+
 > 🌍 **Demo en vivo:** https://luisangelquezada88-netizen.github.io/observatorio-ambiental/
->
-> ![pipeline](https://github.com/luisangelquezada88-netizen/observatorio-ambiental/actions/workflows/pipeline.yml/badge.svg) ![ci](https://github.com/luisangelquezada88-netizen/observatorio-ambiental/actions/workflows/ci.yml/badge.svg)
 
 El presente repositorio contiene **EcoPulso**, un observatorio ambiental que monitorea a diario **150 puntos del planeta (60% Latinoamérica)** y mide indicadores como **PM2.5 y calidad del aire (bandas AQI), temperatura, precipitación, viento y caudal de ríos**, con tableros geográficos interactivos, tarjetas de indicadores y análisis cruzado clima-contaminación.
 
@@ -99,8 +113,8 @@ El trabajo de frontend se ejecuta en 5 iteraciones verificables, detalladas en [
 |-----------|----------|--------|
 | **Iter 1** — Visual quick wins | Paleta ambiental, tipografía, KPI cards, popups por dominio, opacidad de capas, leyenda | ✅ Completa |
 | **Iter 2** — Polígonos y capas vectoriales 2D | Países, áreas urbanas, cuencas (Natural Earth + HydroBASINS), opacidad, leyenda dinámica | ✅ Completa |
-| **Iter 3** — Legibilidad e interacción | Tooltip hover vs popup click, leyenda dinámica, filtro temporal, responsive iframes | 🔄 En curso |
-| **Iter 4** — Indicadores avanzados | Coropletas por país (PM2.5, caudal), series temporales, heatmap, alertas OMS | 📋 Pendiente |
+| **Iter 3** — Legibilidad e interacción | Visor full-bleed, filtros fecha/dominio/región, modos Puntos/Ciudades/Países/Cuencas, IDW por fecha | ✅ Completa |
+| **Iter 4** — Indicadores avanzados | Coropletas por país, series temporales y pulso diario; heatmap y alertas OMS pendientes | 🔄 Parcial |
 | **Iter 5** — Rendimiento y accesibilidad | Auditoría WCAG, lazy loading, optimización de GeoJSON, embed AJAX | 📋 Pendiente |
 
 ## Estructura
@@ -116,11 +130,21 @@ src/geo/map_components.py       # Componentes geoespaciales: países, áreas urb
 dags/                           # Solo envuelven src/ (diaria, mensual, dashboard)
 sql/01_schema_postgis.sql       # Tablas + GiST (auto-aplicado en compose)
 sql/02_validaciones.sql         # 7 chequeos de calidad re-ejecutables
-dashboard/                      # Tablero + 3 pilares + Datos + Acerca de (Quarto)
+dashboard/                      # Visor, Red, 3 pilares, Datos y Acerca de (Quarto)
 dashboard/geo/polygons/         # GeoJSON de polígonos (países, ciudades, cuencas)
 dashboard/geo/sources/          # Registro de fuentes geográficas abiertas
-lake/                           # Fuente de verdad: raw/curated/serving (gitignored)
+lake/                           # Fuente de verdad: raw/curated locales + serving versionado
 tests/test_pipeline.py          # Smoke: idempotencia + 150 puntos + compilación
 scripts/smoke_qmd.py            # Verifica chunks del dashboard sin Quarto
-docs/decisiones.md              # Bitácora D-01…D-14 (cada anomalía documentada)
+docs/decisiones.md              # Bitácora D-01…D-16 (cada anomalía documentada)
 ```
+
+## Licencia
+
+El **código** de este repositorio se distribuye bajo **MIT** (ver [`LICENSE`](LICENSE)).
+Los **datos, capas geográficas y mosaicos** conservan las licencias de sus fuentes
+(Open-Meteo, Copernicus/GloFAS, Natural Earth, HydroSHEDS/HydroBASINS) y no quedan
+cubiertos por la MIT. Ver [`NOTICE.md`](NOTICE.md) para atribuciones y condiciones.
+
+Si reutilizas el proyecto, conserva el aviso de copyright y la licencia MIT, y
+respeta las condiciones de atribución de los datos.

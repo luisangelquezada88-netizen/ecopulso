@@ -11,6 +11,8 @@ website:
     left:
       - href: index.qmd
         text: Visor
+      - href: red.qmd
+        text: Red
       - text: Ambiente
         menu:
           - href: calidad_aire.qmd

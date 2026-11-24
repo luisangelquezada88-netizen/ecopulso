@@ -65,6 +65,10 @@ jobs:
         run: quarto render dashboard --to html
         env:
           PYTHONPATH: ${{ github.workspace }}
+      - name: Superficies IDW al sitio
+        run: |
+          mkdir -p dashboard/_site/superficies
+          cp -r lake/serving/superficies/* dashboard/_site/superficies/
       - uses: actions/upload-pages-artifact@v3
         with: {path: dashboard/_site}
 

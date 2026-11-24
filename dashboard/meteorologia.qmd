@@ -82,107 +82,7 @@ cards = [
 print('<div class="kpi-row">' + "".join(cards) + "</div>")
 ```
 
-## 02 · Visor climático con polígonos geoespaciales
-
-Color por temperatura media, tamaño por lluvia del día. Polígonos (países, cuencas, áreas urbanas) visibles por defecto como fondo.
-
-::: {.map-wrap}
-```{python}
-#| label: visor-clima
-#| fig-cap: "Temperatura media (color) y precipitación (tamaño)"
-import folium
-from folium.plugins import MarkerCluster, Fullscreen, MiniMap
-from branca.element import MacroElement
-from folium.template import Template
-import branca.colormap as cm
-
-import sys
-ROOT = Path.cwd()
-if not (ROOT / "src").exists():
-    ROOT = ROOT.parent
-sys.path.insert(0, str(ROOT))
-from src.geo.map_components import capas_poligonos, html_leyenda_poligonos
-
-ESRI_SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-col_temp = cm.LinearColormap(["#2166ac", "#fee08b", "#b2182b"], vmin=0, vmax=35, caption="Temp. media C")
-
-
-class EcoMobile(MacroElement):
-    """Comportamiento móvil sin leyenda propia: no atrapa el scroll."""
-    _template = Template("""
-        {% macro header(this, kwargs) %}
-        <style>
-        .eco-hint{background:#fff;border-radius:10px;font-size:11px;color:#6c757d;
-          padding:6px 9px;box-shadow:0 1px 5px rgba(0,0,0,.25);max-width:220px}
-        </style>
-        {% endmacro %}
-        {% macro script(this, kwargs) %}
-        (function(){
-          var mapObj = {{this._parent.get_name()}};
-          mapObj.scrollWheelZoom.disable();
-          if (window.innerWidth < 640 && mapObj.dragging) {
-            mapObj.dragging.disable();
-            mapObj.once('click', function(){ mapObj.dragging.enable(); });
-          }
-        })();
-        {% endmacro %}
-    """)
-
-    def __init__(self):
-        super().__init__()
-        self._name = "EcoMobile"
-
-
-def popup(dominio, p, filas):
-    """Popup con borde de color por dominio y tipografía Inter."""
-    color = {"aire": "#ee9b00", "clima": "#219ebc", "agua": "#01497c"}.get(dominio, "#6c757d")
-    rows = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in filas)
-    html = (
-        f"<div class='eco-popup' style='border-left:4px solid {color}; "
-        f"font-family:Inter,sans-serif; font-size:13px;'>"
-        f"<div style='font-weight:700; color:{color}; margin-bottom:6px; border-bottom:1px solid #e6e8e6; padding-bottom:4px;'>"
-        f"<b>{p['ciudad']}</b> <span style='font-weight:400; font-size:0.85rem; opacity:0.8;'>({p['pais']})</span></div>"
-        f"<table style='width:100%; border-collapse:collapse;'>{rows}</table></div>"
-    )
-    return folium.Popup(html, max_width=300)
-
-
-m = folium.Map(location=[-12, -62], zoom_start=3, tiles=None, control_scale=True,
-               preferCanvas=True, scrollWheelZoom=False)
-folium.TileLayer("OpenStreetMap", name="Calles OSM").add_to(m)
-folium.TileLayer(tiles=ESRI_SAT, attr="Esri", name="Satélite").add_to(m)
-
-# ---- Capas de polígonos (FONDO - se dibujan primero, debajo de todo) ----
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
-if g_paises: g_paises.add_to(m)
-if g_cuencas: g_cuencas.add_to(m)
-if g_urbanas: g_urbanas.add_to(m)
-
-mc = MarkerCluster(name="Clima").add_to(m)
-for _, p in base.dropna(subset=["temp_media_c"]).iterrows():
-    ll = 0 if pd.isna(p["precipitacion_mm"]) else float(p["precipitacion_mm"])
-    folium.CircleMarker(
-        [p["lat"], p["lon"]], radius=4 + min(ll, 60) / 8,
-        color=col_temp(float(p["temp_media_c"])), fill=True, fill_opacity=0.85,
-        tooltip=f"{p['ciudad']}: {p['temp_media_c']:.1f} C · {ll:.1f} mm",
-        popup=popup("clima", p, [("T. max", f"{f1(p['temp_max_c'])} C"),
-                        ("T. min", f"{f1(p['temp_min_c'])} C"),
-                        ("Lluvia", f"{ll:.1f} mm"),
-                        ("Viento max", f"{f1(p['viento_max_kmh'])} km/h")]),
-    ).add_to(mc)
-mc.add_to(m)
-
-col_temp.add_to(m)
-EcoMobile().add_to(m)
-MiniMap(toggle_display=True, position="bottomright", width=100, height=100).add_to(m)
-Fullscreen(position="topright", title="Pantalla completa",
-           title_cancel="Salir de pantalla completa", force_separate_button=True).add_to(m)
-folium.LayerControl(collapsed=True).add_to(m)
-m
-```
-:::
-
-## 03 · Machine Learning — Zonas climáticas (K-Means)
+## 02 · Machine Learning — Zonas climáticas (K-Means)
 
 ```{python}
 #| label: ml-zonas-climaticas
@@ -243,7 +143,7 @@ else:
     print("<div class='callout-warning'>Datos insuficientes para clustering climático.</div>")
 ```
 
-## 04 · Machine Learning — Predicción de temperatura (Regresión)
+## 03 · Machine Learning — Predicción de temperatura (Regresión)
 
 ```{python}
 #| label: ml-prediccion-temperatura
@@ -324,7 +224,7 @@ else:
     print("<div class='callout-warning'>Datos insuficientes para entrenar el modelo de regresión.</div>")
 ```
 
-## 05 · Análisis climático clásico
+## 04 · Análisis climático clásico
 
 ```{python}
 #| label: graficos-clima

@@ -1,0 +1,153 @@
+---
+title: "Red de monitoreo"
+lang: es
+format:
+  html:
+    toc: false
+    page-layout: full
+---
+
+```{python}
+#| label: datos-red
+#| output: false
+import sys
+from pathlib import Path
+
+import pandas as pd
+
+ROOT = Path.cwd()
+if not (ROOT / "src").exists():
+    ROOT = ROOT.parent
+sys.path.insert(0, str(ROOT))
+
+from src.data import lake_reader
+
+fechas = lake_reader.listar_fechas_disponibles("serving", "indicador_diario")
+ult = fechas[-1] if fechas else "s/d"
+hist = lake_reader.leer_rango_fechas(fechas[0], ult) if fechas else pd.DataFrame()
+base = hist[hist["fecha"] == ult].copy() if not hist.empty else pd.DataFrame()
+```
+
+<div class="main-container">
+
+```{python}
+#| label: estilo
+#| output: false
+import plotly.io as pio
+
+pio.templates["eco"] = dict(layout=dict(
+    font=dict(family="Inter, sans-serif", size=12),
+    title=dict(font=dict(family="Fraunces, serif", size=15), x=0.02, xanchor="left", automargin=True),
+    margin=dict(l=50, r=20, t=75, b=40),
+    paper_bgcolor="white", plot_bgcolor="white",
+    xaxis=dict(gridcolor="#edf0f0", automargin=True),
+    yaxis=dict(gridcolor="#edf0f0", automargin=True),
+))
+pio.templates.default = "plotly_white+eco"
+```
+
+## 01 · Lectura de la red
+
+```{python}
+#| label: lectura-red
+#| output: asis
+if not base.empty:
+    n_puntos = len(base)
+    n_latam = int((base["region"] == "LatAm").sum())
+    n_paises = int(base["pais"].nunique())
+    n_fechas = len(fechas)
+else:
+    n_puntos = n_latam = n_paises = n_fechas = 0
+
+cards = [
+    (f"{n_puntos}", "puntos de monitoreo"),
+    (f"{n_latam}", "en LatAm y Caribe"),
+    (f"{n_paises}", "países representados"),
+    (f"{n_fechas}", "fechas en el lake"),
+]
+html = "".join(
+    f'<div class="kpi kpi-gris"><div class="kpi-valor">{v}</div>'
+    f'<div class="kpi-etiqueta">{e}</div></div>'
+    for v, e in cards
+)
+print(f'<div class="kpi-row">{html}</div>')
+print(f'<p class="visor-nota">Última fecha servida: <b>{ult}</b>. '
+      f'La pestaña <b>Visor</b> permite explorar los tres dominios, filtrar por región, animar la serie '
+      f'y alternar entre puntos, ciudades, países y cuencas para ver los datos en cada polígono.</p>')
+```
+
+## 02 · Pulso diario de la red
+
+```{python}
+#| label: pulso-diario
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+if not hist.empty:
+    h = hist.copy()
+    h["fecha_dt"] = pd.to_datetime(h["fecha"])
+
+    pm = h.dropna(subset=["pm25_media"]).groupby(["fecha_dt", "region"])["pm25_media"].median().reset_index()
+    tp = h.dropna(subset=["temp_media_c"]).groupby(["fecha_dt", "region"])["temp_media_c"].median().reset_index()
+    ca = h.dropna(subset=["caudal_m3s"]).groupby(["fecha_dt", "region"])["caudal_m3s"].median().reset_index()
+
+    colores = {"LatAm": "#0b3d2e", "Mundo": "#ee9b00"}
+    fig = make_subplots(rows=1, cols=3,
+                        subplot_titles=("PM2.5 mediana (µg/m³)", "Temperatura media (°C)", "Caudal mediano (m³/s)"))
+    for reg, color in colores.items():
+        d = pm[pm["region"] == reg]
+        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["pm25_media"], mode="lines+markers",
+                                 name=reg, legendgroup=reg, line=dict(color=color, width=2),
+                                 marker=dict(size=4)), row=1, col=1)
+        d = tp[tp["region"] == reg]
+        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["temp_media_c"], mode="lines+markers",
+                                 name=reg, legendgroup=reg, showlegend=False,
+                                 line=dict(color=color, width=2), marker=dict(size=4)), row=1, col=2)
+        d = ca[ca["region"] == reg]
+        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["caudal_m3s"], mode="lines+markers",
+                                 name=reg, legendgroup=reg, showlegend=False,
+                                 line=dict(color=color, width=2), marker=dict(size=4)), row=1, col=3)
+    fig.update_layout(height=360, margin=dict(l=40, r=20, t=55, b=40),
+                      legend=dict(orientation="h", y=-0.18, x=0))
+    fig.update_yaxes(type="log", row=1, col=3)
+    fig.show(config={"responsive": True, "displaylogo": False})
+```
+
+## 03 · Cruces que explican la contaminación
+
+<div class="analisis-dedicado">
+
+¿El calor y la lluvia mueven la contaminación? Dos cruces con la guía OMS como referencia.
+
+</div>
+
+```{python}
+#| label: cruzados-maestro
+import plotly.express as px
+
+_necesarias = {"temp_media_c", "pm25_media", "precipitacion_mm", "us_aqi_max"}
+if base.empty or not _necesarias.issubset(base.columns):
+    print("<p class='visor-nota'>No hay datos suficientes para los cruces de esta fecha.</p>")
+else:
+    cru = base.dropna(subset=["temp_media_c", "pm25_media"])
+    fig1 = px.scatter(cru, x="temp_media_c", y="pm25_media", color="region", hover_name="ciudad",
+                      title="Temperatura media vs PM2.5",
+                      labels={"temp_media_c": "Temperatura media (°C)", "pm25_media": "PM2.5 (µg/m³)"},
+                      color_discrete_map={"LatAm": "#0b3d2e", "Mundo": "#ee9b00"})
+    fig1.add_hline(y=15, line_dash="dash", line_color="#2d6a4f",
+                   annotation_text="Guía OMS 24h: 15 µg/m³")
+    fig1.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
+    fig1.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
+
+    cru2 = base.dropna(subset=["precipitacion_mm", "us_aqi_max"])
+    fig2 = px.scatter(cru2, x="precipitacion_mm", y="us_aqi_max", color="region", hover_name="ciudad",
+                      title="Precipitación vs AQI máximo",
+                      labels={"precipitacion_mm": "Precipitación (mm)", "us_aqi_max": "AQI US máximo"},
+                      color_discrete_map={"LatAm": "#0b3d2e", "Mundo": "#ee9b00"})
+    fig2.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
+    fig2.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
+```
+
+> **Fuentes:** Open-Meteo (meteorología y calidad del aire), GloFAS (caudal), Natural Earth (países y áreas urbanas) e HydroBASINS (cuencas). Los polígonos son contexto geoespacial; la superficie IDW se calcula solo para la fecha más reciente.
+
+</div>

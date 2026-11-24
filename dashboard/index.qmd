@@ -24,7 +24,6 @@ import pandas as pd
 from branca.element import MacroElement
 from folium.plugins import Fullscreen
 from folium.template import Template
-from folium.utilities import image_to_url
 
 ROOT = Path.cwd()
 if not (ROOT / "src").exists():
@@ -55,11 +54,11 @@ base = hist[hist["fecha"] == ult].copy() if not hist.empty else pd.DataFrame()
 
 _origen_puntos = hist if not hist.empty else base
 puntos_df = (
-    _origen_puntos[["punto_id", "ciudad", "pais", "region", "lat", "lon"]]
+    _origen_puntos[["punto_id", "ciudad", "pais", "iso3", "region", "lat", "lon"]]
     .drop_duplicates("punto_id")
     .reset_index(drop=True)
     if not _origen_puntos.empty
-    else pd.DataFrame(columns=["punto_id", "ciudad", "pais", "region", "lat", "lon"])
+    else pd.DataFrame(columns=["punto_id", "ciudad", "pais", "iso3", "region", "lat", "lon"])
 )
 pidx = {pid: i for i, pid in enumerate(puntos_df["punto_id"])}
 
@@ -98,6 +97,8 @@ datos = {
     "fechas": fechas,
     "puntos": [
         {
+            "id": r["punto_id"],
+            "iso": r["iso3"],
             "c": r["ciudad"],
             "p": r["pais"],
             "r": r["region"],
@@ -111,7 +112,7 @@ datos = {
     "colores": [OMS_COLORES[c] for c in OMS],
 }
 
-g_paises, g_urbanas, g_cuencas = capas_poligonos()
+g_contexto, g_paises, g_urbanas, g_cuencas = capas_poligonos()
 
 m = folium.Map(
     location=[-12, -62],
@@ -122,16 +123,16 @@ m = folium.Map(
     scrollWheelZoom=False,
     min_zoom=2,
 )
-for g in (g_paises, g_cuencas, g_urbanas):
+for g in (g_contexto, g_paises, g_cuencas, g_urbanas):
     if g:
         g.add_to(m)
 
-idw_path = Path(lake_reader.LAKE_DIR) / "serving" / "superficies" / f"fecha={ult}" / "pm25.png"
+idw_base = Path(lake_reader.LAKE_DIR) / "serving" / "superficies"
 capas = {
     "paises": g_paises.get_name() if g_paises else None,
     "cuencas": g_cuencas.get_name() if g_cuencas else None,
     "urbanas": g_urbanas.get_name() if g_urbanas else None,
-    "idw_url": image_to_url(str(idw_path)) if idw_path.exists() else None,
+    "idw": idw_base.exists(),
 }
 
 items_oms = "".join(
@@ -163,6 +164,15 @@ panel_html = """
     </div>
   </div>
   <div class="eco-field">
+    <div class="eco-lab">Ver como</div>
+    <div class="eco-seg eco-seg-4" id="eco-modo">
+      <button type="button" data-v="puntos" class="on">Puntos</button>
+      <button type="button" data-v="ciudades">Ciudades</button>
+      <button type="button" data-v="paises">Países</button>
+      <button type="button" data-v="cuencas">Cuencas</button>
+    </div>
+  </div>
+  <div class="eco-field">
     <div class="eco-lab">Fecha <span id="eco-fecha-val" class="eco-val"></span></div>
     <div class="eco-fecha">
       <button type="button" id="eco-play" class="eco-play" aria-label="Reproducir serie">▶</button>
@@ -177,13 +187,8 @@ panel_html = """
     </select>
   </div>
   <div class="eco-field">
-    <div class="eco-lab">Capas del territorio</div>
-    <div class="eco-check-grid">
-      <label class="eco-check"><input type="checkbox" id="eco-paises" checked> Países</label>
-      <label class="eco-check"><input type="checkbox" id="eco-cuencas" checked> Cuencas</label>
-      <label class="eco-check"><input type="checkbox" id="eco-urbanas" checked> Áreas urbanas</label>
-      <label class="eco-check"><input type="checkbox" id="eco-idw"> IDW PM2.5</label>
-    </div>
+    <div class="eco-lab">Raster</div>
+    <label class="eco-check"><input type="checkbox" id="eco-idw"> IDW PM2.5</label>
   </div>
   <div class="eco-field">
     <div class="eco-lab">Opacidad polígonos <span id="eco-op-val" class="eco-val">35%</span></div>
@@ -192,10 +197,10 @@ panel_html = """
   <div class="eco-field">
     <div class="eco-lab">Mapa base</div>
     <select id="eco-base" class="eco-select">
+      <option value="oscuro" selected>Oscuro</option>
       <option value="claro">Claro</option>
       <option value="satelite">Satélite</option>
       <option value="calles">Calles</option>
-      <option value="oscuro">Oscuro</option>
     </select>
   </div>
   <div class="eco-stats" id="eco-stats"></div>
@@ -218,6 +223,7 @@ leyenda_html = f"""
     <div><span class='dot' style='color:#0b3d2e'>■</span> Países</div>
     <div><span class='dot' style='color:#1d6fa5'>■</span> Cuencas</div>
     <div><span class='dot' style='color:#7b6d8d'>■</span> Áreas urbanas</div>
+    <div class="eco-lg-note" style="margin-top:7px">Toca un polígono para ver sus datos</div>
   </div>
 </details>
 """
@@ -248,6 +254,8 @@ class EcoVisor(MacroElement):
         .eco-val{font-size:11px;font-weight:700;color:#0b3d2e;text-transform:none;letter-spacing:0}
         .eco-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#f1f4f2;
           padding:3px;border-radius:10px}
+        .eco-seg-4{grid-template-columns:repeat(4,1fr)}
+        .eco-seg-4 button{font-size:10.5px;padding:6px 2px}
         .eco-seg button{border:0;background:transparent;border-radius:7px;padding:6px 4px;
           font-size:11.5px;font-weight:700;color:#4b5563;cursor:pointer;font-family:inherit}
         .eco-seg button.on{background:#0b3d2e;color:#fff;box-shadow:0 2px 8px rgba(11,61,46,.25)}
@@ -326,40 +334,59 @@ class EcoVisor(MacroElement):
             baseActual = BASES[k] || BASES.claro;
             baseActual.addTo(mapObj);
           }
-          setBase('claro');
+          setBase('oscuro');
 
           function capa(k){ var n = C[k]; return n ? window[n] : null; }
           var POLY = {paises: capa('paises'), cuencas: capa('cuencas'), urbanas: capa('urbanas')};
-          var PESO = {paises: 0.35, cuencas: 0.55, urbanas: 0.85};
-          var vis = {paises: true, cuencas: true, urbanas: true};
+          function geoChild(g){
+            if (!g || !g.getLayers) { return null; }
+            var ls = g.getLayers();
+            return ls.length ? ls[0] : null;
+          }
+          var GJSON = {
+            paises: geoChild(POLY.paises),
+            cuencas: geoChild(POLY.cuencas),
+            urbanas: geoChild(POLY.urbanas)
+          };
+          var OP_MUTED = '#64748b';
           var opacidad = 0.35;
+          var modo = 'puntos';
+          var VISTA = {punto: {}, pais: {}};
 
-          function zoomFactor(k){
-            var z = mapObj.getZoom();
-            if (k === 'cuencas') { return z >= 8 ? 0.35 : 1.0; }
-            if (k === 'urbanas') { return z >= 8 ? 1.0 : 0.55; }
-            return 1.0;
+          function valorDominio(o){
+            if (dominio === 'aire') { return o[2]; }
+            if (dominio === 'clima') { return o[5]; }
+            return o[8];
           }
 
           function pintaPoly(){
             ['paises','cuencas','urbanas'].forEach(function(k){
               var g = POLY[k];
               if (!g) { return; }
-              if (!vis[k]) { if (mapObj.hasLayer(g)) { mapObj.removeLayer(g); } return; }
               if (!mapObj.hasLayer(g)) { g.addTo(mapObj); }
-              if (g.setStyle) { g.setStyle({fillOpacity: opacidad * PESO[k] * zoomFactor(k), opacity: 0.95}); }
               if (g.bringToBack) { g.bringToBack(); }
             });
+            pintaPoligonosDatos();
           }
-          mapObj.on('zoomend', pintaPoly);
+          mapObj.on('zoomend', function(){ pintaPoligonosDatos(); });
 
           var idw = null;
-          if (C.idw_url) {
+          var idwFecha = null;
+          if (C.idw) {
             mapObj.createPane('ecoIdw');
             mapObj.getPane('ecoIdw').style.zIndex = 350;
-            idw = L.imageOverlay(C.idw_url, [[-56,-120],[33,-30]], {pane:'ecoIdw', opacity:0.62, interactive:false});
           }
           var idwOn = false;
+
+          function idwUrl(){
+            var f = D.fechas[fechaIdx];
+            try {
+              var base = (window.parent && window.parent.location) ? window.parent.location.href : document.baseURI;
+              return new URL('superficies/fecha=' + f + '/pm25.png', base).href;
+            } catch (e) {
+              return 'superficies/fecha=' + f + '/pm25.png';
+            }
+          }
 
           var canvas = L.canvas({padding: 0.5});
           var markers = null;
@@ -384,13 +411,12 @@ class EcoVisor(MacroElement):
             var m = Math.floor(b.length/2);
             return b.length % 2 ? b[m] : (b[m-1] + b[m]) / 2;
           }
-          function tempColor(t){
-            var stops = [[0,'#2166ac'],[10,'#67a9cf'],[18,'#fee08b'],[26,'#f46d43'],[35,'#b2182b']];
-            if (t <= stops[0][0]) { return stops[0][1]; }
+          function ramp(x, stops){
+            if (x <= stops[0][0]) { return stops[0][1]; }
             for (var i=1;i<stops.length;i++){
-              if (t <= stops[i][0]) {
+              if (x <= stops[i][0]) {
                 var a = stops[i-1], b = stops[i];
-                var f = (t - a[0]) / (b[0] - a[0]);
+                var f = (x - a[0]) / (b[0] - a[0]);
                 var ca = parseInt(a[1].slice(1),16), cb = parseInt(b[1].slice(1),16);
                 var r = Math.round(((ca>>16)&255) + f * (((cb>>16)&255) - ((ca>>16)&255)));
                 var gg = Math.round(((ca>>8)&255) + f * (((cb>>8)&255) - ((ca>>8)&255)));
@@ -400,8 +426,46 @@ class EcoVisor(MacroElement):
             }
             return stops[stops.length-1][1];
           }
+          function tempColor(t){
+            return ramp(t, [[0,'#2166ac'],[10,'#67a9cf'],[18,'#fee08b'],[26,'#f46d43'],[35,'#b2182b']]);
+          }
+          function flowColor(v){
+            var x = Math.log10(1 + Math.max(0, v || 0));
+            return ramp(x, [[0,'#c6dbef'],[0.5,'#9ecae1'],[1,'#6baed6'],[2,'#3182bd'],[3,'#08519c'],[4.5,'#08306b']]);
+          }
+          function categoriaAQI(v){
+            var cortes = [12, 35.4, 55.4, 150.4, 250.4];
+            for (var i=0;i<cortes.length;i++){ if (v <= cortes[i]) { return D.oms[i]; } }
+            return D.oms[D.oms.length - 1];
+          }
+          function colorCategoria(nombre){
+            var i = D.oms.indexOf(nombre);
+            return i >= 0 ? D.colores[i] : '#6c757d';
+          }
+          function colorDominio(v, o, agregado){
+            if (dominio === 'aire') {
+              var cat = agregado || !o ? categoriaAQI(v) : (D.oms[o[3]] || categoriaAQI(v));
+              return colorCategoria(cat);
+            }
+            if (dominio === 'clima') { return tempColor(v); }
+            return flowColor(v);
+          }
+          function radioDominio(v, o){
+            if (dominio === 'aire') { return 4 + Math.min(v, 150) / 18; }
+            if (dominio === 'clima') { return 4 + Math.min((o && o[6]) || 0, 60) / 10; }
+            return 3 + 2.2 * Math.log10(1 + v);
+          }
 
-          function popupHTML(p, o){
+          function popupBase(titulo, subtitulo, rows, footer){
+            var tr = rows.map(function(r){
+              return '<tr><td>' + r[0] + '</td><td><b>' + r[1] + '</b></td></tr>';
+            }).join('');
+            return '<div class="eco-pop"><div class="eco-pop-h">' + esc(titulo) +
+              '<span>' + esc(subtitulo || '') + '</span></div><table>' + tr + '</table>' +
+              '<div class="eco-pop-f">' + esc(footer || D.fechas[fechaIdx]) + '</div></div>';
+          }
+
+          function filasDominio(o){
             var rows = [];
             if (dominio === 'aire') {
               rows.push(['PM2.5', fmt(o[2],1) + ' µg/m³']);
@@ -415,12 +479,127 @@ class EcoVisor(MacroElement):
               rows.push(['Caudal', fmt(o[8],0) + ' m³/s']);
               rows.push(['Tipo', o[9] ? 'Cuenca' : 'Ciudad']);
             }
-            var tr = rows.map(function(r){
-              return '<tr><td>' + r[0] + '</td><td><b>' + r[1] + '</b></td></tr>';
-            }).join('');
-            return '<div class="eco-pop"><div class="eco-pop-h">' + esc(p.c) +
-              '<span>' + esc(p.p) + '</span></div><table>' + tr + '</table>' +
-              '<div class="eco-pop-f">' + D.fechas[fechaIdx] + '</div></div>';
+            return rows;
+          }
+
+          function popupHTML(p, o){
+            return popupBase(p.c, p.p, filasDominio(o), D.fechas[fechaIdx]);
+          }
+
+          function popupSinDatos(nombre){
+            return popupBase(nombre || 'Sin datos', 'Sin datos',
+              [['Estado', 'Sin datos para esta fecha']], D.fechas[fechaIdx]);
+          }
+
+          function popupPais(props, acc, v){
+            var rows = [['Puntos', acc.n]];
+            if (dominio === 'aire') {
+              rows.push(['PM2.5 mediana', fmt(v,1) + ' µg/m³']);
+              rows.push(['Categoría', categoriaAQI(v)]);
+              rows.push(['Máximo', fmt(Math.max.apply(null, acc.vals),1) + ' µg/m³']);
+            } else if (dominio === 'clima') {
+              rows.push(['Temp. media', fmt(v,1) + ' °C']);
+              rows.push(['Lluvia total', fmt(acc.prs,1) + ' mm']);
+              rows.push(['Máxima', fmt(Math.max.apply(null, acc.vals),1) + ' °C']);
+            } else {
+              rows.push(['Caudal mediano', fmt(v,0) + ' m³/s']);
+              rows.push(['Caudal máximo', fmt(Math.max.apply(null, acc.vals),0) + ' m³/s']);
+            }
+            rows.push(['Ciudad líder', acc.mejor ? acc.mejor.p.c : 's/d']);
+            return popupBase(props.nombre || props.NAME || props.ISO3, 'País', rows, D.fechas[fechaIdx]);
+          }
+
+          function popupCuenca(props, o){
+            var rows = [
+              ['Cuenca', props.nombre_cuenca || 's/d'],
+              ['Ciudad', props.ciudad || 's/d'],
+              ['HYBAS_ID', props.HYBAS_ID || 's/d'],
+              ['Área', fmt(props.SUB_AREA,0) + ' km²'],
+              ['Nivel', props.nivel || 's/d']
+            ];
+            if (o) {
+              if (dominio === 'aire') {
+                rows.push(['PM2.5', fmt(o[2],1) + ' µg/m³']);
+                rows.push(['Categoría', D.oms[o[3]] || 's/d']);
+              } else if (dominio === 'clima') {
+                rows.push(['Temp. media', fmt(o[5],1) + ' °C']);
+                rows.push(['Precipitación', fmt(o[6],1) + ' mm']);
+              } else {
+                rows.push(['Caudal en el punto', fmt(o[8],0) + ' m³/s']);
+              }
+            } else {
+              rows.push(['Datos', 'Sin datos']);
+            }
+            return popupBase(props.nombre_cuenca || props.ciudad || 'Cuenca',
+              props.pais || 'Cuenca', rows, D.fechas[fechaIdx]);
+          }
+
+          function estiloMuted(layer){
+            layer.setStyle({color: OP_MUTED, fillColor: OP_MUTED, weight: 0.4,
+              fillOpacity: 0.03, opacity: 0.25});
+          }
+
+          function valorAgregado(acc){
+            if (dominio === 'agua') { return median(acc.q); }
+            return median(acc.vals);
+          }
+
+          function pintaPais(layer){
+            var props = layer.feature.properties || {};
+            var iso = props.ISO3 || props.ADM0_A3;
+            var acc = VISTA.pais[iso];
+            var activo = modo === 'paises';
+            var v = acc ? valorAgregado(acc) : null;
+            if (!acc || !isNum(v)) {
+              estiloMuted(layer);
+              layer.bindPopup(popupSinDatos(props.nombre || props.NAME || iso), {maxWidth: 300});
+              return;
+            }
+            var color = colorDominio(v, null, true);
+            var op = activo ? Math.min(0.78, 0.25 + opacidad * 0.7) : 0.05;
+            layer.setStyle({color: color, fillColor: color, weight: activo ? 1.1 : 0.5,
+              fillOpacity: op, opacity: activo ? 0.95 : 0.35});
+            layer.bindPopup(popupPais(props, acc, v), {maxWidth: 320});
+          }
+
+          function pintaUrbana(layer){
+            var props = layer.feature.properties || {};
+            var o = VISTA.punto[props.punto_id];
+            var activo = modo === 'ciudades';
+            if (!o || !isNum(valorDominio(o))) {
+              estiloMuted(layer);
+              layer.bindPopup(popupSinDatos(props.ciudad), {maxWidth: 300});
+              return;
+            }
+            var v = valorDominio(o);
+            var color = colorDominio(v, o, false);
+            var op = activo ? Math.min(0.8, 0.22 + opacidad * 0.7) : 0.06;
+            layer.setStyle({color: color, fillColor: color, weight: activo ? 1.2 : 0.5,
+              fillOpacity: op, opacity: activo ? 0.95 : 0.35});
+            layer.bindPopup(popupHTML(D.puntos[o[0]], o), {maxWidth: 300});
+          }
+
+          function pintaCuenca(layer){
+            var props = layer.feature.properties || {};
+            var o = VISTA.punto[props.punto_id];
+            var activo = modo === 'cuencas';
+            if (!o || !isNum(valorDominio(o))) {
+              estiloMuted(layer);
+              layer.bindPopup(popupCuenca(props, null), {maxWidth: 320});
+              return;
+            }
+            var v = valorDominio(o);
+            var color = colorDominio(v, o, false);
+            var op = activo ? Math.min(0.55, 0.15 + opacidad * 0.6) : 0.07;
+            layer.setStyle({color: '#1d6fa5', fillColor: color, weight: activo ? 1.8 : 0.8,
+              fillOpacity: op, opacity: activo ? 0.95 : 0.35});
+            layer.bindPopup(popupCuenca(props, o), {maxWidth: 320});
+          }
+
+          function pintaPoligonosDatos(){
+            if (GJSON.paises) { GJSON.paises.eachLayer(pintaPais); }
+            if (GJSON.urbanas) { GJSON.urbanas.eachLayer(pintaUrbana); }
+            if (GJSON.cuencas) { GJSON.cuencas.eachLayer(pintaCuenca); }
           }
 
           var panel = L.control({position: 'topright'});
@@ -484,10 +663,19 @@ class EcoVisor(MacroElement):
           }
 
           function syncIdw(){
-            if (!idw) { return; }
-            var show = idwOn && dominio === 'aire' && fechaIdx === D.fechas.length - 1;
-            if (show && !mapObj.hasLayer(idw)) { idw.addTo(mapObj); }
-            if (!show && mapObj.hasLayer(idw)) { mapObj.removeLayer(idw); }
+            if (!C.idw) { return; }
+            var show = idwOn && dominio === 'aire';
+            if (!show) {
+              if (idw && mapObj.hasLayer(idw)) { mapObj.removeLayer(idw); }
+              return;
+            }
+            var f = D.fechas[fechaIdx];
+            if (!idw || idwFecha !== f) {
+              if (idw && mapObj.hasLayer(idw)) { mapObj.removeLayer(idw); }
+              idw = L.imageOverlay(idwUrl(), [[-56,-120],[33,-30]], {pane:'ecoIdw', opacity:0.62, interactive:false});
+              idwFecha = f;
+            }
+            if (!mapObj.hasLayer(idw)) { idw.addTo(mapObj); }
           }
 
           function fitRegion(){
@@ -501,44 +689,47 @@ class EcoVisor(MacroElement):
           }
 
           function render(){
-            if (markers) { mapObj.removeLayer(markers); }
+            if (markers) { mapObj.removeLayer(markers); markers = null; }
+            VISTA = {punto: {}, pais: {}};
             var arr = [], vals = [], prs = [];
             D.obs.forEach(function(o){
               if (o[1] !== fechaIdx) { return; }
               var p = D.puntos[o[0]];
               if (!p) { return; }
               if (region !== 'todos' && p.r !== region) { return; }
-              var v, color, rad;
-              if (dominio === 'aire') {
-                v = o[2];
-                if (!isNum(v)) { return; }
-                color = D.colores[o[3]] || '#6c757d';
-                rad = 4 + Math.min(v, 150) / 18;
-              } else if (dominio === 'clima') {
-                v = o[5];
-                if (!isNum(v)) { return; }
-                color = tempColor(v);
-                rad = 4 + Math.min(o[6] || 0, 60) / 10;
-                prs.push(o[6] || 0);
-              } else {
-                v = o[8];
-                if (!isNum(v)) { return; }
-                color = '#01497c';
-                rad = 3 + 2.2 * Math.log10(1 + v);
+              var v = valorDominio(o);
+              if (!isNum(v)) { return; }
+              VISTA.punto[p.id] = o;
+              var acc = VISTA.pais[p.iso];
+              if (!acc) {
+                acc = VISTA.pais[p.iso] = {vals: [], q: [], prs: 0, n: 0, mejor: null};
               }
-              var mk = L.circleMarker([p.la, p.lo], {
-                radius: rad, color: color, weight: 1.2, fillColor: color,
-                fillOpacity: 0.86, renderer: canvas
-              });
-              mk.bindTooltip(esc(p.c) + ' · ' + fmt(v, dominio === 'agua' ? 0 : 1), {direction:'top', sticky:true});
-              mk.bindPopup(popupHTML(p, o), {maxWidth: 300});
-              arr.push(mk);
+              acc.vals.push(v);
+              acc.n += 1;
+              if (dominio === 'clima') { acc.prs += (o[6] || 0); }
+              if (dominio === 'agua') { acc.q.push(v); }
+              if (!acc.mejor || v > acc.mejor.v) { acc.mejor = {v: v, o: o, p: p}; }
               vals.push(v);
+              if (dominio === 'clima') { prs.push(o[6] || 0); }
+
+              if (modo === 'puntos') {
+                var color = colorDominio(v, o, false);
+                var rad = radioDominio(v, o);
+                var mk = L.circleMarker([p.la, p.lo], {
+                  radius: rad, color: color, weight: 1.2, fillColor: color,
+                  fillOpacity: 0.88, renderer: canvas
+                });
+                mk.bindTooltip(esc(p.c) + ' · ' + fmt(v, dominio === 'agua' ? 0 : 1),
+                  {direction: 'top', sticky: true});
+                mk.bindPopup(popupHTML(p, o), {maxWidth: 300});
+                arr.push(mk);
+              }
             });
-            markers = L.layerGroup(arr).addTo(mapObj);
+            if (arr.length) { markers = L.layerGroup(arr).addTo(mapObj); }
             q('#eco-stats').innerHTML = statsHTML(vals, prs);
-            q('#eco-idw').disabled = !idw || !(dominio === 'aire' && fechaIdx === D.fechas.length - 1);
+            q('#eco-idw').disabled = !C.idw || dominio !== 'aire';
             syncIdw();
+            pintaPoligonosDatos();
           }
 
           qa('#eco-dominio button').forEach(function(b){
@@ -548,6 +739,16 @@ class EcoVisor(MacroElement):
               dominio = b.getAttribute('data-v');
               render();
             });
+          });
+          function setModo(m){
+            modo = m;
+            qa('#eco-modo button').forEach(function(x){
+              x.classList.toggle('on', x.getAttribute('data-v') === m);
+            });
+            render();
+          }
+          qa('#eco-modo button').forEach(function(b){
+            b.addEventListener('click', function(){ setModo(b.getAttribute('data-v')); });
           });
           qa('#eco-region button').forEach(function(b){
             b.addEventListener('click', function(){
@@ -583,11 +784,6 @@ class EcoVisor(MacroElement):
             }
           });
 
-          ['paises','cuencas','urbanas'].forEach(function(k){
-            var box = q('#eco-' + k);
-            box.checked = vis[k];
-            box.addEventListener('change', function(){ vis[k] = box.checked; pintaPoly(); });
-          });
           var idwBox = q('#eco-idw');
           idwBox.addEventListener('change', function(){ idwOn = idwBox.checked; syncIdw(); });
 
@@ -597,7 +793,7 @@ class EcoVisor(MacroElement):
           op.addEventListener('input', function(){
             opacidad = parseInt(op.value, 10) / 100;
             q('#eco-op-val').textContent = op.value + '%';
-            pintaPoly();
+            pintaPoligonosDatos();
           });
 
           var baseSel = q('#eco-base');
@@ -615,7 +811,10 @@ class EcoVisor(MacroElement):
           citySel.addEventListener('change', function(){
             if (citySel.value === '') { fitRegion(); return; }
             var p = D.puntos[parseInt(citySel.value, 10)];
-            if (p) { mapObj.flyTo([p.la, p.lo], 10, {duration: 1.1}); }
+            if (p) {
+              setModo('ciudades');
+              mapObj.flyTo([p.la, p.lo], 10, {duration: 1.1});
+            }
           });
 
           q('#eco-collapse').addEventListener('click', function(){
@@ -650,130 +849,5 @@ Fullscreen(position="topleft", title="Pantalla completa",
 m
 ```
 :::
-
-</div>
-
-<div class="main-container">
-
-```{python}
-#| label: estilo
-#| output: false
-import plotly.io as pio
-
-pio.templates["eco"] = dict(layout=dict(
-    font=dict(family="Inter, sans-serif", size=12),
-    title=dict(font=dict(family="Fraunces, serif", size=15), x=0.02, xanchor="left", automargin=True),
-    margin=dict(l=50, r=20, t=75, b=40),
-    paper_bgcolor="white", plot_bgcolor="white",
-    xaxis=dict(gridcolor="#edf0f0", automargin=True),
-    yaxis=dict(gridcolor="#edf0f0", automargin=True),
-))
-pio.templates.default = "plotly_white+eco"
-```
-
-## 01 · Lectura de la red
-
-```{python}
-#| label: lectura-red
-#| output: asis
-if not base.empty:
-    n_puntos = len(base)
-    n_latam = int((base["region"] == "LatAm").sum())
-    n_paises = int(base["pais"].nunique())
-    n_fechas = len(fechas)
-else:
-    n_puntos = n_latam = n_paises = n_fechas = 0
-
-cards = [
-    (f"{n_puntos}", "puntos de monitoreo"),
-    (f"{n_latam}", "en LatAm y Caribe"),
-    (f"{n_paises}", "países representados"),
-    (f"{n_fechas}", "fechas en el lake"),
-]
-html = "".join(
-    f'<div class="kpi kpi-gris"><div class="kpi-valor">{v}</div>'
-    f'<div class="kpi-etiqueta">{e}</div></div>'
-    for v, e in cards
-)
-print(f'<div class="kpi-row">{html}</div>')
-print(f'<p class="visor-nota">Última fecha servida: <b>{ult}</b>. '
-      f'El visor permite explorar los tres dominios, filtrar por región, animar la serie '
-      f'y acercar el mapa a cualquiera de las {n_puntos} estaciones para ver sus polígonos '
-      f'de área urbana y cuenca.</p>')
-```
-
-## 02 · Pulso diario de la red
-
-```{python}
-#| label: pulso-diario
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-
-if not hist.empty:
-    h = hist.copy()
-    h["fecha_dt"] = pd.to_datetime(h["fecha"])
-
-    pm = h.dropna(subset=["pm25_media"]).groupby(["fecha_dt", "region"])["pm25_media"].median().reset_index()
-    tp = h.dropna(subset=["temp_media_c"]).groupby(["fecha_dt", "region"])["temp_media_c"].median().reset_index()
-    ca = h.dropna(subset=["caudal_m3s"]).groupby(["fecha_dt", "region"])["caudal_m3s"].median().reset_index()
-
-    colores = {"LatAm": "#0b3d2e", "Mundo": "#ee9b00"}
-    fig = make_subplots(rows=1, cols=3,
-                        subplot_titles=("PM2.5 mediana (µg/m³)", "Temperatura media (°C)", "Caudal mediano (m³/s)"))
-    for reg, color in colores.items():
-        d = pm[pm["region"] == reg]
-        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["pm25_media"], mode="lines+markers",
-                                 name=reg, legendgroup=reg, line=dict(color=color, width=2),
-                                 marker=dict(size=4)), row=1, col=1)
-        d = tp[tp["region"] == reg]
-        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["temp_media_c"], mode="lines+markers",
-                                 name=reg, legendgroup=reg, showlegend=False,
-                                 line=dict(color=color, width=2), marker=dict(size=4)), row=1, col=2)
-        d = ca[ca["region"] == reg]
-        fig.add_trace(go.Scatter(x=d["fecha_dt"], y=d["caudal_m3s"], mode="lines+markers",
-                                 name=reg, legendgroup=reg, showlegend=False,
-                                 line=dict(color=color, width=2), marker=dict(size=4)), row=1, col=3)
-    fig.update_layout(height=360, margin=dict(l=40, r=20, t=55, b=40),
-                      legend=dict(orientation="h", y=-0.18, x=0))
-    fig.update_yaxes(type="log", row=1, col=3)
-    fig.show(config={"responsive": True, "displaylogo": False})
-```
-
-## 03 · Cruces que explican la contaminación
-
-<div class="analisis-dedicado">
-
-¿El calor y la lluvia mueven la contaminación? Dos cruces con la guía OMS como referencia.
-
-</div>
-
-```{python}
-#| label: cruzados-maestro
-import plotly.express as px
-
-_necesarias = {"temp_media_c", "pm25_media", "precipitacion_mm", "us_aqi_max"}
-if base.empty or not _necesarias.issubset(base.columns):
-    print("<p class='visor-nota'>No hay datos suficientes para los cruces de esta fecha.</p>")
-else:
-    cru = base.dropna(subset=["temp_media_c", "pm25_media"])
-    fig1 = px.scatter(cru, x="temp_media_c", y="pm25_media", color="region", hover_name="ciudad",
-                      title="Temperatura media vs PM2.5",
-                      labels={"temp_media_c": "Temperatura media (°C)", "pm25_media": "PM2.5 (µg/m³)"},
-                      color_discrete_map={"LatAm": "#0b3d2e", "Mundo": "#ee9b00"})
-    fig1.add_hline(y=15, line_dash="dash", line_color="#2d6a4f",
-                   annotation_text="Guía OMS 24h: 15 µg/m³")
-    fig1.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
-    fig1.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
-
-    cru2 = base.dropna(subset=["precipitacion_mm", "us_aqi_max"])
-    fig2 = px.scatter(cru2, x="precipitacion_mm", y="us_aqi_max", color="region", hover_name="ciudad",
-                      title="Precipitación vs AQI máximo",
-                      labels={"precipitacion_mm": "Precipitación (mm)", "us_aqi_max": "AQI US máximo"},
-                      color_discrete_map={"LatAm": "#0b3d2e", "Mundo": "#ee9b00"})
-    fig2.update_layout(height=420, margin=dict(l=50, r=20, t=75, b=40))
-    fig2.show(config={"responsive": True, "displaylogo": False, "modebarButtonsToRemove": ["lasso2d", "select2d"]})
-```
-
-> **Fuentes:** Open-Meteo (meteorología y calidad del aire), GloFAS (caudal), Natural Earth (países y áreas urbanas) e HydroBASINS (cuencas). Los polígonos son contexto geoespacial; la superficie IDW se calcula solo para la fecha más reciente.
 
 </div>

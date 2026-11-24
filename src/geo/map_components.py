@@ -5,8 +5,8 @@ FeatureGroups de Folium listos para agregar a cualquier visor.
 
 Uso en un .qmd:
     from src.geo.map_components import capas_poligonos, html_leyenda_poligonos
-    g_paises, g_urbanas, g_cuencas = capas_poligonos()
-    g_paises.add_to(m); g_urbanas.add_to(m); g_cuencas.add_to(m)
+    g_contexto, g_paises, g_urbanas, g_cuencas = capas_poligonos()
+    g_contexto.add_to(m); g_paises.add_to(m); g_urbanas.add_to(m); g_cuencas.add_to(m)
 """
 from __future__ import annotations
 
@@ -31,6 +31,12 @@ GEO_DIR = next((c for c in _CANDIDATES if c.exists()), _CANDIDATES[0])
 # ---------------------------------------------------------------------------
 # Estilos por tipo de polígono (relleno más visible para Iteración 3)
 # ---------------------------------------------------------------------------
+ESTILO_CONTEXTO = {
+    "color": "#64748b",
+    "weight": 0.4,
+    "fillOpacity": 0.03,
+    "fillColor": "#64748b",
+}
 ESTILO_PAISES = {
     "color": "#0b3d2e",
     "weight": 0.8,
@@ -63,16 +69,28 @@ def _cargar_geojson(nombre_archivo: str) -> dict | None:
 
 def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
     """
-    Crea tres FeatureGroups de Folium con los polígonos disponibles:
-      - países (contexto + clipping futuro del IDW)
+    Crea cuatro FeatureGroups de Folium con los polígonos disponibles:
+      - contexto mundial (110m, solo fondo)
+      - países (66 con datos + clipping futuro del IDW)
       - áreas urbanas (polígonos de ciudad, 100% de cobertura con buffers)
       - cuencas (polígonos hidrográficos, nivel 6 HydroBASINS)
 
-    Orden de capas: países (fondo) -> cuencas -> áreas urbanas -> marcadores (sobre todo).
-    Devuelve (g_paises, g_urbanas, g_cuencas) — cada uno puede ser None si
-    el archivo GeoJSON no existe.
+    Orden de capas: contexto -> países -> cuencas -> áreas urbanas -> puntos.
+    Devuelve (g_contexto, g_paises, g_urbanas, g_cuencas) — cada uno puede ser
+    None si el archivo GeoJSON no existe.
     """
-    g_paises = g_urbanas = g_cuencas = None
+    g_contexto = g_paises = g_urbanas = g_cuencas = None
+
+    # 0. Contexto mundial (NE 110m) — solo para orientación, sin datos.
+    data_contexto = _cargar_geojson("mundo_contexto.geojson")
+    if data_contexto:
+        g_contexto = folium.FeatureGroup(name="Contexto mundial", show=True)
+        GeoJson(
+            data_contexto,
+            name="Contexto",
+            style_function=lambda feat: ESTILO_CONTEXTO,
+            interactive=False,
+        ).add_to(g_contexto)
 
     # 1. Países (capa de fondo, más abajo en z-index)
     data_paises = _cargar_geojson("paises_necesarios.geojson")
@@ -84,7 +102,7 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             style_function=lambda feat: ESTILO_PAISES,
             highlight_function=lambda feat: {"weight": 3, "color": "#0b3d2e"},
             tooltip=folium.features.GeoJsonTooltip(
-                fields=["NAME"], aliases=["País:"], sticky=True
+                fields=["nombre"], aliases=["País:"], sticky=True
             ),
         ).add_to(g_paises)
 
@@ -98,8 +116,8 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             style_function=lambda feat: ESTILO_CUENCAS,
             highlight_function=lambda feat: {"weight": 4, "color": "#01497c"},
             tooltip=folium.features.GeoJsonTooltip(
-                fields=["ciudad", "pais", "nivel"],
-                aliases=["Ciudad:", "País:", "Nivel cuenca:"],
+                fields=["nombre_cuenca", "ciudad", "nivel"],
+                aliases=["Cuenca:", "Ciudad:", "Nivel:"],
                 sticky=True,
             ),
         ).add_to(g_cuencas)
@@ -120,7 +138,7 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             ),
         ).add_to(g_urbanas)
 
-    return g_paises, g_urbanas, g_cuencas
+    return g_contexto, g_paises, g_urbanas, g_cuencas
 
 
 def html_leyenda_poligonos() -> str:
@@ -128,7 +146,7 @@ def html_leyenda_poligonos() -> str:
     items = ""
     if (GEO_DIR / "paises_necesarios.geojson").exists():
         items += (
-            "<div><span class='dot' style='color:#0b3d2e'>■</span> Países (contexto)</div>"
+            "<div><span class='dot' style='color:#0b3d2e'>■</span> Países (66 con datos)</div>"
         )
     if (GEO_DIR / "areas_urbanas_coincidentes.geojson").exists():
         items += (
