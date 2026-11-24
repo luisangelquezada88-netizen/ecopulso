@@ -120,19 +120,17 @@ m = folium.Map(
     tiles=None,
     control_scale=True,
     preferCanvas=True,
-    scrollWheelZoom=False,
+    scrollWheelZoom=True,
     min_zoom=2,
 )
 for g in (g_contexto, g_paises, g_cuencas, g_urbanas):
     if g:
         g.add_to(m)
 
-idw_base = Path(lake_reader.LAKE_DIR) / "serving" / "superficies"
 capas = {
     "paises": g_paises.get_name() if g_paises else None,
     "cuencas": g_cuencas.get_name() if g_cuencas else None,
     "urbanas": g_urbanas.get_name() if g_urbanas else None,
-    "idw": idw_base.exists(),
 }
 
 items_oms = "".join(
@@ -150,8 +148,8 @@ panel_html = """
   <div class="eco-field">
     <div class="eco-lab">Dominio</div>
     <div class="eco-seg" id="eco-dominio">
-      <button type="button" data-v="aire" class="on">Aire</button>
-      <button type="button" data-v="clima">Clima</button>
+      <button type="button" data-v="aire">Aire</button>
+      <button type="button" data-v="clima" class="on">Clima</button>
       <button type="button" data-v="agua">Agua</button>
     </div>
   </div>
@@ -166,9 +164,9 @@ panel_html = """
   <div class="eco-field">
     <div class="eco-lab">Ver como</div>
     <div class="eco-seg eco-seg-4" id="eco-modo">
-      <button type="button" data-v="puntos" class="on">Puntos</button>
+      <button type="button" data-v="puntos">Puntos</button>
       <button type="button" data-v="ciudades">Ciudades</button>
-      <button type="button" data-v="paises">Países</button>
+      <button type="button" data-v="paises" class="on">Países</button>
       <button type="button" data-v="cuencas">Cuencas</button>
     </div>
   </div>
@@ -185,10 +183,6 @@ panel_html = """
     <select id="eco-ciudad" class="eco-select">
       <option value="">Red completa</option>
     </select>
-  </div>
-  <div class="eco-field">
-    <div class="eco-lab">Raster</div>
-    <label class="eco-check"><input type="checkbox" id="eco-idw"> IDW PM2.5</label>
   </div>
   <div class="eco-field">
     <div class="eco-lab">Opacidad polígonos <span id="eco-op-val" class="eco-val">35%</span></div>
@@ -350,7 +344,7 @@ class EcoVisor(MacroElement):
           };
           var OP_MUTED = '#64748b';
           var opacidad = 0.35;
-          var modo = 'puntos';
+          var modo = 'paises';
           var VISTA = {punto: {}, pais: {}};
 
           function valorDominio(o){
@@ -364,33 +358,12 @@ class EcoVisor(MacroElement):
               var g = POLY[k];
               if (!g) { return; }
               if (!mapObj.hasLayer(g)) { g.addTo(mapObj); }
-              if (g.bringToBack) { g.bringToBack(); }
             });
             pintaPoligonosDatos();
           }
-          mapObj.on('zoomend', function(){ pintaPoligonosDatos(); });
 
-          var idw = null;
-          var idwFecha = null;
-          if (C.idw) {
-            mapObj.createPane('ecoIdw');
-            mapObj.getPane('ecoIdw').style.zIndex = 350;
-          }
-          var idwOn = false;
-
-          function idwUrl(){
-            var f = D.fechas[fechaIdx];
-            try {
-              var base = (window.parent && window.parent.location) ? window.parent.location.href : document.baseURI;
-              return new URL('superficies/fecha=' + f + '/pm25.png', base).href;
-            } catch (e) {
-              return 'superficies/fecha=' + f + '/pm25.png';
-            }
-          }
-
-          var canvas = L.canvas({padding: 0.5});
           var markers = null;
-          var dominio = 'aire';
+          var dominio = 'clima';
           var region = 'todos';
           var fechaIdx = D.fechas.length - 1;
 
@@ -552,14 +525,12 @@ class EcoVisor(MacroElement):
             var v = acc ? valorAgregado(acc) : null;
             if (!acc || !isNum(v)) {
               estiloMuted(layer);
-              layer.bindPopup(popupSinDatos(props.nombre || props.NAME || iso), {maxWidth: 300});
               return;
             }
             var color = colorDominio(v, null, true);
             var op = activo ? Math.min(0.78, 0.25 + opacidad * 0.7) : 0.05;
             layer.setStyle({color: color, fillColor: color, weight: activo ? 1.1 : 0.5,
               fillOpacity: op, opacity: activo ? 0.95 : 0.35});
-            layer.bindPopup(popupPais(props, acc, v), {maxWidth: 320});
           }
 
           function pintaUrbana(layer){
@@ -568,7 +539,6 @@ class EcoVisor(MacroElement):
             var activo = modo === 'ciudades';
             if (!o || !isNum(valorDominio(o))) {
               estiloMuted(layer);
-              layer.bindPopup(popupSinDatos(props.ciudad), {maxWidth: 300});
               return;
             }
             var v = valorDominio(o);
@@ -576,7 +546,6 @@ class EcoVisor(MacroElement):
             var op = activo ? Math.min(0.8, 0.22 + opacidad * 0.7) : 0.06;
             layer.setStyle({color: color, fillColor: color, weight: activo ? 1.2 : 0.5,
               fillOpacity: op, opacity: activo ? 0.95 : 0.35});
-            layer.bindPopup(popupHTML(D.puntos[o[0]], o), {maxWidth: 300});
           }
 
           function pintaCuenca(layer){
@@ -585,7 +554,6 @@ class EcoVisor(MacroElement):
             var activo = modo === 'cuencas';
             if (!o || !isNum(valorDominio(o))) {
               estiloMuted(layer);
-              layer.bindPopup(popupCuenca(props, null), {maxWidth: 320});
               return;
             }
             var v = valorDominio(o);
@@ -593,13 +561,52 @@ class EcoVisor(MacroElement):
             var op = activo ? Math.min(0.55, 0.15 + opacidad * 0.6) : 0.07;
             layer.setStyle({color: '#1d6fa5', fillColor: color, weight: activo ? 1.8 : 0.8,
               fillOpacity: op, opacity: activo ? 0.95 : 0.35});
-            layer.bindPopup(popupCuenca(props, o), {maxWidth: 320});
           }
 
           function pintaPoligonosDatos(){
             if (GJSON.paises) { GJSON.paises.eachLayer(pintaPais); }
             if (GJSON.urbanas) { GJSON.urbanas.eachLayer(pintaUrbana); }
             if (GJSON.cuencas) { GJSON.cuencas.eachLayer(pintaCuenca); }
+          }
+
+          function popupPaisDe(layer){
+            var props = layer.feature.properties || {};
+            var iso = props.ISO3 || props.ADM0_A3;
+            var acc = VISTA.pais[iso];
+            if (!acc) { return popupSinDatos(props.nombre || props.NAME || iso); }
+            var v = valorAgregado(acc);
+            if (!isNum(v)) { return popupSinDatos(props.nombre || props.NAME || iso); }
+            return popupPais(props, acc, v);
+          }
+
+          function popupUrbanaDe(layer){
+            var props = layer.feature.properties || {};
+            var o = VISTA.punto[props.punto_id];
+            if (!o) { return popupSinDatos(props.ciudad); }
+            return popupHTML(D.puntos[o[0]], o);
+          }
+
+          function popupCuencaDe(layer){
+            var props = layer.feature.properties || {};
+            return popupCuenca(props, VISTA.punto[props.punto_id] || null);
+          }
+
+          function bindPopups(){
+            if (GJSON.paises) {
+              GJSON.paises.eachLayer(function(layer){
+                layer.bindPopup(function(){ return popupPaisDe(layer); }, {maxWidth: 320});
+              });
+            }
+            if (GJSON.urbanas) {
+              GJSON.urbanas.eachLayer(function(layer){
+                layer.bindPopup(function(){ return popupUrbanaDe(layer); }, {maxWidth: 300});
+              });
+            }
+            if (GJSON.cuencas) {
+              GJSON.cuencas.eachLayer(function(layer){
+                layer.bindPopup(function(){ return popupCuencaDe(layer); }, {maxWidth: 320});
+              });
+            }
           }
 
           var panel = L.control({position: 'topright'});
@@ -662,22 +669,6 @@ class EcoVisor(MacroElement):
                    '<div>Máximo <b>' + fmt(qmx,0) + '</b> m³/s</div>';
           }
 
-          function syncIdw(){
-            if (!C.idw) { return; }
-            var show = idwOn && dominio === 'aire';
-            if (!show) {
-              if (idw && mapObj.hasLayer(idw)) { mapObj.removeLayer(idw); }
-              return;
-            }
-            var f = D.fechas[fechaIdx];
-            if (!idw || idwFecha !== f) {
-              if (idw && mapObj.hasLayer(idw)) { mapObj.removeLayer(idw); }
-              idw = L.imageOverlay(idwUrl(), [[-56,-120],[33,-30]], {pane:'ecoIdw', opacity:0.62, interactive:false});
-              idwFecha = f;
-            }
-            if (!mapObj.hasLayer(idw)) { idw.addTo(mapObj); }
-          }
-
           function fitRegion(){
             var b = L.latLngBounds([]);
             D.puntos.forEach(function(p){
@@ -717,7 +708,7 @@ class EcoVisor(MacroElement):
                 var rad = radioDominio(v, o);
                 var mk = L.circleMarker([p.la, p.lo], {
                   radius: rad, color: color, weight: 1.2, fillColor: color,
-                  fillOpacity: 0.88, renderer: canvas
+                  fillOpacity: 0.88
                 });
                 mk.bindTooltip(esc(p.c) + ' · ' + fmt(v, dominio === 'agua' ? 0 : 1),
                   {direction: 'top', sticky: true});
@@ -727,8 +718,6 @@ class EcoVisor(MacroElement):
             });
             if (arr.length) { markers = L.layerGroup(arr).addTo(mapObj); }
             q('#eco-stats').innerHTML = statsHTML(vals, prs);
-            q('#eco-idw').disabled = !C.idw || dominio !== 'aire';
-            syncIdw();
             pintaPoligonosDatos();
           }
 
@@ -784,9 +773,6 @@ class EcoVisor(MacroElement):
             }
           });
 
-          var idwBox = q('#eco-idw');
-          idwBox.addEventListener('change', function(){ idwOn = idwBox.checked; syncIdw(); });
-
           var op = q('#eco-op');
           op.value = Math.round(opacidad * 100);
           q('#eco-op-val').textContent = op.value + '%';
@@ -824,6 +810,7 @@ class EcoVisor(MacroElement):
 
           updateFecha();
           q('#eco-fecha-hint').textContent = D.fechas.length + ' fechas disponibles';
+          bindPopups();
           pintaPoly();
           render();
           fitRegion();

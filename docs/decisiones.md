@@ -149,7 +149,32 @@
 - IDW por fecha: los PNG de `lake/serving/superficies` se copian a
   `dashboard/_site/superficies` en el pipeline y el visor los carga bajo demanda
   con `L.imageOverlay`; el toggle ya no está limitado a la última fecha.
+  *(Deshabilitado por D-18: mala adherencia a límites urbanos.)*
 - `plotly>=5.22,<6` se mantiene por el import ESM roto de Quarto con Plotly 6/7.
+
+## D-18 — Popups, zoom, footer y datos tempranos (2026-11-24)
+- **IDW PM2.5 deshabilitado**: se retira el control del panel y el paso de
+  superficie del pipeline. La capa histórica queda en `lake/serving/superficies`
+  para una tarea dedicada. Un raster de temperatura requeriría generalizar
+  `superficie_idw` y resolver el recorte; queda pendiente.
+- **Clics en polígonos**: el renderer canvas de los marcadores tapaba los
+  polígonos y bloqueaba los popups. Se elimina el canvas propio, se usa el
+  renderer único del mapa y los popups se enlazan una sola vez con funciones
+  que leen `VISTA` al abrir. Clics de país y ciudad verificados.
+- **UX**: `scrollWheelZoom=True` (trackpad), footer de Quarto oculto en el
+  visor, grid de `#quarto-content` ajustado a `100dvh - navbar` sin fila
+  sobrante. El mapa ocupa toda la ventana y ya no hay scroll de página.
+- **Default**: Países + Clima al cargar; el visor abre con la capa de países
+  coloreada por temperatura.
+- **Datos tempranos**: 46 parquet de `indicador_diario`/`indicador_pais`
+  (2026-10-02..24) tenían la columna `fecha` y esquema antiguo; en CI/Pages no
+  se leían y el visor arrancaba vacío hasta 2026-10-25. Se normalizaron a
+  pyarrow 24 sin `fecha` (la partición inyecta la fecha). Verificado local:
+  payload con todas las fechas y 150 observaciones por fecha.
+- **Pendiente**: relleno “tipo olas” del aire. Con un punto por ciudad no hay
+  campo intraciudad real; se propone un IDW regional recortado al polígono,
+  etiquetado como interpolación, en una tarea dedicada.
+
 
 ## D-17 — Licencia MIT para código y datos aparte (2026-11-24)
 - Proyecto personal de portafolio, sin empleador/cliente ni coautores.

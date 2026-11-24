@@ -44,11 +44,6 @@ jobs:
         env: {GFW_API_KEY: "${{ secrets.GFW_API_KEY }}"}
       - name: Transform
         run: python -m src.transform.indicadores --fecha "$FECHA"
-      - name: Superficie IDW
-        # Extra visual: si falla, la ingesta y el sitio siguen vivos (el fallo
-        # queda visible como step naranja + anotación ::warning::).
-        continue-on-error: true
-        run: python -m src.transform.superficie_idw --fecha "$FECHA"
       - name: Tests rápidos
         run: pytest tests/ -q
       - name: Persistir historial (lake/serving → repo)
@@ -65,10 +60,6 @@ jobs:
         run: quarto render dashboard --to html
         env:
           PYTHONPATH: ${{ github.workspace }}
-      - name: Superficies IDW al sitio
-        run: |
-          mkdir -p dashboard/_site/superficies
-          cp -r lake/serving/superficies/* dashboard/_site/superficies/
       - uses: actions/upload-pages-artifact@v3
         with: {path: dashboard/_site}
 
