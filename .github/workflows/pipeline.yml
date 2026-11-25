@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["src/**", "dashboard/**", "tests/**", "requirements.txt", "dags/**", "sql/**"]
+    paths: ["src/**", "dashboard/**", "tests/**", "requirements.txt", "dags/**", "sql/**", ".github/workflows/**"]
 
 permissions:
   contents: write   # Necesario para persistir lake/serving (historial, D-12)
@@ -29,11 +29,13 @@ jobs:
       - name: Fecha (ayer UTC)
         run: echo "FECHA=$(date -u -d 'yesterday' +%F)" >> $GITHUB_ENV
       - name: Ingesta Open-Meteo x3
+        if: github.event_name != 'push'
         run: |
           python -m src.extract.openmeteo_meteorologia --fecha "$FECHA"
           python -m src.extract.openmeteo_calidad_aire --fecha "$FECHA"
           python -m src.extract.openmeteo_hidrologia --fecha "$FECHA"
       - name: Fuentes anuales (solo día 1 del mes)
+        if: github.event_name != 'push'
         run: |
           YEAR=$(date -u -d 'yesterday' +%Y)
           PREV=$((YEAR-1))
@@ -43,10 +45,12 @@ jobs:
           fi
         env: {GFW_API_KEY: "${{ secrets.GFW_API_KEY }}"}
       - name: Transform
+        if: github.event_name != 'push'
         run: python -m src.transform.indicadores --fecha "$FECHA"
       - name: Tests rápidos
         run: pytest tests/ -q
       - name: Persistir historial (lake/serving → repo)
+        if: github.event_name != 'push'
         # El runner es efímero: sin este commit no hay serie temporal para el
         # slider (D-12). No genera loop: lake/** no está en los paths del trigger.
         run: |
