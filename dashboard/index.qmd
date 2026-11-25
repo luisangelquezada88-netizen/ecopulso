@@ -346,6 +346,7 @@ class EcoVisor(MacroElement):
           var opacidad = 0.35;
           var modo = 'paises';
           var VISTA = {punto: {}, pais: {}};
+          var PATRONES = {};
 
           function valorDominio(o){
             if (dominio === 'aire') { return o[2]; }
@@ -422,6 +423,46 @@ class EcoVisor(MacroElement):
             }
             if (dominio === 'clima') { return tempColor(v); }
             return flowColor(v);
+          }
+          function colorLinea(color){
+            var m = /^#([0-9a-f]{6})$/i.exec(color);
+            if (!m) { return 'rgba(255,255,255,.30)'; }
+            var n = parseInt(m[1], 16);
+            var lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+            return lum < 0.55 ? 'rgba(255,255,255,.30)' : 'rgba(0,0,0,.22)';
+          }
+          function ctxRelleno(){
+            var ctx = null;
+            [GJSON.paises, GJSON.urbanas, GJSON.cuencas].forEach(function(g){
+              if (ctx || !g || !g.eachLayer) { return; }
+              g.eachLayer(function(l){
+                if (!ctx && l._renderer && l._renderer._ctx) { ctx = l._renderer._ctx; }
+              });
+            });
+            return ctx;
+          }
+          function patronAire(color){
+            var key = String(color);
+            if (PATRONES[key]) { return PATRONES[key]; }
+            var ctx = ctxRelleno();
+            if (!ctx) { return color; }
+            var tile = document.createElement('canvas');
+            tile.width = 10; tile.height = 10;
+            var t = tile.getContext('2d');
+            t.fillStyle = color;
+            t.fillRect(0, 0, 10, 10);
+            t.strokeStyle = colorLinea(color);
+            t.lineWidth = 1;
+            t.beginPath();
+            t.moveTo(-2, 10); t.lineTo(10, -2);
+            t.moveTo(3, 13); t.lineTo(13, 3);
+            t.stroke();
+            var pat = ctx.createPattern(tile, 'repeat');
+            PATRONES[key] = pat || color;
+            return PATRONES[key];
+          }
+          function rellenoPoligono(color, activo){
+            return (activo && dominio === 'aire') ? patronAire(color) : color;
           }
           function radioDominio(v, o){
             if (dominio === 'aire') { return 4 + Math.min(v, 150) / 18; }
@@ -529,8 +570,8 @@ class EcoVisor(MacroElement):
             }
             var color = colorDominio(v, null, true);
             var op = activo ? Math.min(0.78, 0.25 + opacidad * 0.7) : 0.05;
-            layer.setStyle({color: color, fillColor: color, weight: activo ? 1.1 : 0.5,
-              fillOpacity: op, opacity: activo ? 0.95 : 0.35});
+            layer.setStyle({color: color, fillColor: rellenoPoligono(color, activo),
+              weight: activo ? 1.1 : 0.5, fillOpacity: op, opacity: activo ? 0.95 : 0.35});
           }
 
           function pintaUrbana(layer){
@@ -544,8 +585,8 @@ class EcoVisor(MacroElement):
             var v = valorDominio(o);
             var color = colorDominio(v, o, false);
             var op = activo ? Math.min(0.8, 0.22 + opacidad * 0.7) : 0.06;
-            layer.setStyle({color: color, fillColor: color, weight: activo ? 1.2 : 0.5,
-              fillOpacity: op, opacity: activo ? 0.95 : 0.35});
+            layer.setStyle({color: color, fillColor: rellenoPoligono(color, activo),
+              weight: activo ? 1.2 : 0.5, fillOpacity: op, opacity: activo ? 0.95 : 0.35});
           }
 
           function pintaCuenca(layer){
@@ -559,8 +600,8 @@ class EcoVisor(MacroElement):
             var v = valorDominio(o);
             var color = colorDominio(v, o, false);
             var op = activo ? Math.min(0.55, 0.15 + opacidad * 0.6) : 0.07;
-            layer.setStyle({color: '#1d6fa5', fillColor: color, weight: activo ? 1.8 : 0.8,
-              fillOpacity: op, opacity: activo ? 0.95 : 0.35});
+            layer.setStyle({color: '#1d6fa5', fillColor: rellenoPoligono(color, activo),
+              weight: activo ? 1.8 : 0.8, fillOpacity: op, opacity: activo ? 0.95 : 0.35});
           }
 
           function pintaPoligonosDatos(){

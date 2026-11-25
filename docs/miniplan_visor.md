@@ -100,5 +100,6 @@ Ruta rápida si se quiere valor inmediato: **Fase A** primero (1.5–2 días), l
 - [x] Backfill: 52 fechas continuas y 52 superficies IDW.
 - [x] Fase B: 66 países + contexto 110m, 17 cuencas nivel 6, modos Puntos/Ciudades/Países/Cuencas y popups con datos.
 - [x] Fase C: IDW por fecha con copia de superficies al sitio. *(Deshabilitado por D-18.)*
+- [x] Relleno de aire: hatch diagonal sobre el canvas, solo Aire y capa activa.
 - [x] QA final: Quarto render 7/7, Playwright escritorio/móvil, smoke y pytest.
-- [ ] Commit/push (pendiente de autorización).
+- [ ] Commit/push del hatch (pendiente).

@@ -171,9 +171,13 @@
   se leían y el visor arrancaba vacío hasta 2026-10-25. Se normalizaron a
   pyarrow 24 sin `fecha` (la partición inyecta la fecha). Verificado local:
   payload con todas las fechas y 150 observaciones por fecha.
-- **Pendiente**: relleno “tipo olas” del aire. Con un punto por ciudad no hay
-  campo intraciudad real; se propone un IDW regional recortado al polígono,
-  etiquetado como interpolación, en una tarea dedicada.
+- **Relleno de aire**: se descartó el IDW intraciudad (un punto por ciudad no
+  permite un campo real). Se implementó un **hatch diagonal** como
+  `CanvasPattern` sobre el canvas único, solo para Aire y solo en la capa
+  activa. Mantiene el color de la categoría AQI y añade textura sin inventar
+  datos espaciales. El patrón se cachea por color; clics y popups no cambian.
+- **Pendiente**: raster de temperatura. Requiere generalizar `superficie_idw`
+  y resolver el recorte a polígonos; no se incluyó en este sprint.
 
 
 ## D-17 — Licencia MIT para código y datos aparte (2026-11-24)
