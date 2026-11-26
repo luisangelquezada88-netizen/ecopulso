@@ -45,8 +45,12 @@
     }
   }
 
+  function getPlotly() {
+    return window.Plotly || window._Plotly || null;
+  }
   function tune() {
-    if (!window.Plotly) return;
+    var Plotly = getPlotly();
+    if (!Plotly) return;
     var mobile = window.innerWidth < BP;
     document.querySelectorAll(".js-plotly-plot").forEach(function (gd) {
       try {
@@ -97,7 +101,7 @@
             }
           }
         }
-        window.Plotly.relayout(gd, update);
+        Plotly.relayout(gd, update);
       } catch (e) { /* figura aún no lista; el siguiente pase la toma */ }
     });
   }
@@ -109,5 +113,11 @@
   });
   document.addEventListener("DOMContentLoaded", function () { setTimeout(tune, 300); });
   window.addEventListener("load", tune);
+  // Reintentos por si Plotly renderiza después del load (Quarto/require.js).
+  [500, 1200, 2500].forEach(function (d) { setTimeout(tune, d); });
+  try {
+    var mo = new MutationObserver(function () { clearTimeout(timer); timer = setTimeout(tune, 120); });
+    mo.observe(document.body, { childList: true, subtree: true });
+  } catch (e) { /* sin MutationObserver, los timeouts anteriores cubren el caso */ }
 })();
 </script>

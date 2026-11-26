@@ -877,14 +877,14 @@ body:has(.visor-app) #quarto-document-content > :first-child {
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
   }
-  /* Gráficos Plotly: scroll horizontal si son muy anchos */
+  /* Gráficos Plotly: se adaptan al ancho; scroll solo si desbordan */
   .cell-output-display,
   .cell-output {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
   .js-plotly-plot {
-    min-width: 360px;
+    max-width: 100%;
   }
   /* Imágenes e iframes no desbordan */
   img, iframe, video {
