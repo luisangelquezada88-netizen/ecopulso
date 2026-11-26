@@ -10,13 +10,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/luisangelquezada88-netizen/observatorio-ambiental/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/luisangelquezada88-netizen/observatorio-ambiental/ci.yml?branch=main&amp;label=CI&amp;style=flat-square"></a>
-  <a href="https://github.com/luisangelquezada88-netizen/observatorio-ambiental/actions/workflows/pipeline.yml"><img alt="Data Pipeline" src="https://img.shields.io/github/actions/workflow/status/luisangelquezada88-netizen/observatorio-ambiental/pipeline.yml?branch=main&amp;label=Data%20Pipeline&amp;style=flat-square"></a>
+  <a href="https://github.com/luisangelquezada88-netizen/ecopulso/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/luisangelquezada88-netizen/ecopulso/ci.yml?branch=main&amp;label=CI&amp;style=flat-square"></a>
+  <a href="https://github.com/luisangelquezada88-netizen/ecopulso/actions/workflows/pipeline.yml"><img alt="Data Pipeline" src="https://img.shields.io/github/actions/workflow/status/luisangelquezada88-netizen/ecopulso/pipeline.yml?branch=main&amp;label=Data%20Pipeline&amp;style=flat-square"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square"></a>
-  <a href="https://luisangelquezada88-netizen.github.io/observatorio-ambiental/"><img alt="Demo" src="https://img.shields.io/badge/Demo-GitHub%20Pages-2d6a4f?style=flat-square&amp;logo=github&amp;logoColor=white"></a>
+  <a href="https://luisangelquezada88-netizen.github.io/ecopulso/"><img alt="App" src="https://img.shields.io/badge/App-GitHub%20Pages-2d6a4f?style=flat-square&amp;logo=github&amp;logoColor=white"></a>
 </p>
 
-> 🌍 **Demo en vivo:** https://luisangelquezada88-netizen.github.io/observatorio-ambiental/
+> 🌍 **App en vivo:** https://luisangelquezada88-netizen.github.io/ecopulso/
 
 El presente repositorio contiene **EcoPulso**, un observatorio ambiental que monitorea a diario **150 puntos del planeta (60% Latinoamérica)** y mide indicadores como **PM2.5 y calidad del aire (bandas AQI), temperatura, precipitación, viento y caudal de ríos**, con tableros geográficos interactivos, tarjetas de indicadores y análisis cruzado clima-contaminación.
 

@@ -110,7 +110,10 @@ if len(df_ml) > 20:
     y = le.fit_transform(y_raw)
 
     # Split train/test con stratify
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
+    try:
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
+    except ValueError:
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=42)
 
     # Entrenar Random Forest de scikit-learn
     clf = modelos.RandomForestClassifier(n_arboles=100, max_depth=8, seed=42, class_weight="balanced")

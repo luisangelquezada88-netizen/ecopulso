@@ -100,7 +100,6 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             data_paises,
             name="Países",
             style_function=lambda feat: ESTILO_PAISES,
-            highlight_function=lambda feat: {"weight": 3, "color": "#0b3d2e"},
             tooltip=folium.features.GeoJsonTooltip(
                 fields=["nombre"], aliases=["País:"], sticky=True
             ),
@@ -114,7 +113,6 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             data_cuencas,
             name="Cuenca",
             style_function=lambda feat: ESTILO_CUENCAS,
-            highlight_function=lambda feat: {"weight": 4, "color": "#01497c"},
             tooltip=folium.features.GeoJsonTooltip(
                 fields=["nombre_cuenca", "ciudad", "nivel"],
                 aliases=["Cuenca:", "Ciudad:", "Nivel:"],
@@ -130,7 +128,6 @@ def capas_poligonos() -> Tuple[folium.FeatureGroup | None, ...]:
             data_urbanas,
             name="Área urbana",
             style_function=lambda feat: ESTILO_URBANAS,
-            highlight_function=lambda feat: {"weight": 3, "color": "#52796f"},
             tooltip=folium.features.GeoJsonTooltip(
                 fields=["ciudad", "pais", "tipo"],
                 aliases=["Ciudad:", "País:", "Tipo:"],

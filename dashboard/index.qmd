@@ -148,8 +148,8 @@ panel_html = """
   <div class="eco-field">
     <div class="eco-lab">Dominio</div>
     <div class="eco-seg" id="eco-dominio">
-      <button type="button" data-v="aire">Aire</button>
-      <button type="button" data-v="clima" class="on">Clima</button>
+      <button type="button" data-v="aire" class="on">Aire</button>
+      <button type="button" data-v="clima">Clima</button>
       <button type="button" data-v="agua">Agua</button>
     </div>
   </div>
@@ -364,7 +364,7 @@ class EcoVisor(MacroElement):
           }
 
           var markers = null;
-          var dominio = 'clima';
+          var dominio = 'aire';
           var region = 'todos';
           var fechaIdx = D.fechas.length - 1;
 

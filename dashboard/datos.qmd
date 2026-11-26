@@ -60,4 +60,4 @@ El tablero se actualiza solo cada día (06:15 UTC) con los datos de ayer vía Gi
 
 ## Reutilizar los datos
 
-Todo el pipeline es código abierto: [repositorio en GitHub](https://github.com/luisangelquezada88-netizen/observatorio-ambiental). Ver [Acerca de](acerca.qmd).
+Todo el pipeline es código abierto: [repositorio en GitHub](https://github.com/luisangelquezada88-netizen/ecopulso). Ver [Acerca de](acerca.qmd).
